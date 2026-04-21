@@ -1,141 +1,181 @@
 # fxxk-coming-soon
 
-> Bridging the gap between research papers and executable code.
+> Autonomous paper reproduction: from PDF to reproduced results, with a continuous agent loop that runs until it succeeds.
 
 ---
 
-## 1️⃣ Repository Structure
+## What Is This?
+
+Many research papers release GitHub repos with only a **"Coming Soon"** message — or no code at all. **fxxk-coming-soon** bridges that gap with a two-stage approach:
+
+1. **Documentation Generation**: Use `PAPER_TO_CODE_PROMPT.md` with any capable LLM to convert a research paper into 4 structured `.md` files — a complete implementation blueprint.
+2. **Autonomous Reproduction Loop**: Drop those files + `AGENT_LOOP_PROMPT.md` into a new project and run `/reproduce`. Claude Code loops — implement → execute → evaluate → diagnose → improve — until the paper's reported metrics are reproduced within tolerance.
+
+---
+
+## Repository Structure
 
 ```
 fxxk-coming-soon/
 │
-├── README.md                  # Project description & usage guide
-├── PAPER_TO_CODE_PROMPT.md    # Main prompt template
-├── examples/                  # Example outputs from real papers
-│   └── demo-paper/            # The 4 generated .md files for one paper
-├── templates/                 # Blank Markdown templates
-│   ├── PROJECT_STRUCTURE.md
-│   ├── IMPLEMENTATION_PLAN.md
-│   ├── DATA_AND_EVAL.md
-│   └── RISKS_AND_NOTES.md
-└── docs/                      # Additional guides & notes
+├── PAPER_TO_CODE_PROMPT.md    # Stage 1: master LLM prompt → 4 doc files
+├── AGENT_LOOP_PROMPT.md       # Stage 2: master loop controller for Claude Code
+│
+├── skills/                    # Claude Code slash commands (copy to target project)
+│   ├── reproduce/SKILL.md         # /reproduce — start the loop
+│   ├── evaluate/SKILL.md          # /evaluate — check current progress
+│   ├── loop-once/SKILL.md         # /loop-once — one manual iteration
+│   ├── debug-gap/SKILL.md         # /debug-gap — analyze failing metrics
+│   ├── reproduce-status/SKILL.md  # /reproduce-status — quick snapshot
+│   └── shared/
+│       ├── effort-contract.md     # effort level definitions (lite/balanced/max/beast)
+│       └── loop-contract.md       # invariants all skills must follow
+│
+├── templates/                 # Templates for target paper reproduction projects
+│   ├── LOOP_STATE.md              # Loop state tracker (copy to target project)
+│   ├── project-CLAUDE.md          # CLAUDE.md template for target projects
+│   ├── PROJECT_STRUCTURE.md       # Architecture blueprint template
+│   ├── IMPLEMENTATION_PLAN.md     # Implementation plan template
+│   ├── DATA_AND_EVAL.md           # Data & evaluation template
+│   └── RISKS_AND_NOTES.md         # Risks & notes template
+│
+└── README.md
 ```
 
 ---
 
-## 2️⃣ Background
-In recent years, more and more research papers release GitHub repositories with only a **"Coming Soon"** message, or they choose not to release any code at all.  
-This greatly slows down reproducibility and the progress of open science.
+## The Complete Workflow
 
-**fxxk-coming-soon** provides an optimized prompt framework that enables LLMs to generate comprehensive, structured documentation from research papers. This documentation is specifically designed to guide Claude Code through autonomous paper reproduction with minimal human intervention.
+### Stage 1: Generate Documentation (5-10 minutes)
 
----
+1. Extract the paper's methodology sections (abstract, method, experiments)
+2. Open `PAPER_TO_CODE_PROMPT.md` and paste paper content into `{{PAPER_CONTENT}}`
+3. Submit to a capable LLM (Claude 4, GPT-5, Grok 4)
+4. Save the 4 generated files:
+   - `PROJECT_STRUCTURE.md` — architecture blueprint with exact function signatures
+   - `IMPLEMENTATION_PLAN.md` — phase-by-phase implementation roadmap
+   - `DATA_AND_EVAL.md` — data pipelines + **machine-readable target metrics**
+   - `RISKS_AND_NOTES.md` — known challenges and debugging strategies
 
-## 3️⃣ Core Innovation
-- 🎯 **Optimized Prompt Engineering**: Advanced prompt template specifically designed for Claude Code autonomous implementation
-- 🧠 **Systematic Paper Analysis**: Structured framework for extracting key implementation details from research papers
-- 📄 **Comprehensive Documentation Generation**: Creates 4 interconnected `.md` files with executable specifications
-- 🤖 **Autonomous-Ready Output**: Documentation includes specific function signatures, dependency maps, and validation checkpoints
-- 🛠️ **Seamless Integration**: Generated docs serve as complete blueprints for Claude Code implementation
+### Stage 2: Autonomous Reproduction Loop (runs until success)
 
----
+Create a new project folder with the 4 generated files, then:
 
-## 4️⃣ Usage Workflow
-1. 📑 **Prepare the paper**  
-   Extract the relevant sections (especially the methodology) from the English research paper.
+```bash
+# Copy loop infrastructure from fxxk-coming-soon
+cp /path/to/fxxk-coming-soon/AGENT_LOOP_PROMPT.md .
+cp /path/to/fxxk-coming-soon/templates/LOOP_STATE.md .
+cp /path/to/fxxk-coming-soon/templates/project-CLAUDE.md ./CLAUDE.md
+mkdir -p .claude/commands
+cp -r /path/to/fxxk-coming-soon/skills/* .claude/commands/
 
-2. 📝 **Get the Prompt**  
-   Open [`PAPER_TO_CODE_PROMPT.md`](PAPER_TO_CODE_PROMPT.md) in this repository.
+# Launch Claude Code and start the loop
+claude
+> /reproduce
+```
 
-3. 🚀 **Generate Documentation**  
-   Combine the paper content with the optimized prompt template and input into a capable LLM. The prompt includes systematic analysis frameworks and quality validation checklists.
+Claude Code will run autonomously:
 
-4. 💾 **Save the Generated Documentation**  
-   The LLM will produce four interconnected files:
-   - `PROJECT_STRUCTURE.md` - Complete architectural blueprint with exact specifications
-   - `IMPLEMENTATION_PLAN.md` - Sequential development roadmap with specific Claude Code tasks
-   - `DATA_AND_EVAL.md` - Comprehensive data handling and evaluation protocols
-   - `RISKS_AND_NOTES.md` - Proactive guidance for implementation challenges  
-   Save them into your project workspace.
+```
+INITIALIZE → read docs, load targets, check state
+     ↓
+PHASE 0: Environment setup  [first iteration only]
+     ↓
+PHASE 1: Implement / Improve
+     ↓  (full code first iter; targeted fix on subsequent iters)
+PHASE 2: Execute
+     ↓  (run experiment, save to logs/iter_N.log)
+PHASE 3: Evaluate
+     ↓  (compare metrics vs paper targets, compute gaps)
+PHASE 4: Decide
+     ├── ALL PASS → REPRODUCTION_REPORT.md → DONE ✓
+     ├── MAX ITER → PROGRESS_REPORT.md → DONE ⏱
+     └── FAIL → diagnose → update LOOP_STATE.md → back to PHASE 1
+```
 
-5. 🛠️ **Autonomous Implementation**  
-   Launch Claude Code in the project folder. The generated documentation provides all necessary specifications for autonomous implementation, including function signatures, dependency maps, testing procedures, and validation checkpoints.
-
----
-
-## 5️⃣ Key Features of the Optimized Framework
-
-### 🎯 **Advanced Prompt Engineering**
-- **Systematic Analysis**: Structured framework for extracting implementation details from papers
-- **Claude Code Optimization**: Specifications designed for autonomous coding capabilities
-- **Quality Validation**: Built-in checklists ensure comprehensive documentation
-
-### 📊 **Comprehensive Documentation Structure**
-1. **PROJECT_STRUCTURE.md** - Architecture Blueprint
-   - Complete repository structure with file purposes
-   - Module interface specifications with exact function signatures
-   - Technology stack with version constraints
-   - Configuration schemas and entry points
-
-2. **IMPLEMENTATION_PLAN.md** - Sequential Execution Guide
-   - Four-phase development approach (Infrastructure → Data → Models → Evaluation)
-   - Detailed implementation steps with pseudocode
-   - Integration points and validation checkpoints
-   - Specific Claude Code task instructions
-
-3. **DATA_AND_EVAL.md** - Data and Evaluation Protocols
-   - Exact dataset specifications and processing pipelines
-   - Complete evaluation framework with metric formulas
-   - Reproducibility requirements and validation procedures
-   - Performance benchmarks and troubleshooting guides
-
-4. **RISKS_AND_NOTES.md** - Implementation Guidance
-   - Structured risk assessment (High/Medium/Low priority)
-   - Numbered assumptions with validation methods
-   - Common pitfalls and debugging strategies
-   - Claude Code-specific development guidance
-
-### 🤖 **Autonomous Implementation Ready**
-- **Executable Specifications**: Every instruction implementable without human clarification
-- **Dependency Management**: Clear implementation order and interface definitions
-- **Incremental Validation**: Standalone testing procedures for each component
-- **Configuration-Driven**: Externalized parameters and environment settings
-
-### 🔍 **Quality Assurance Framework**
-✅ Specific function names and signatures  
-✅ Exact parameter values and configuration settings  
-✅ Complete dependency lists with versions  
-✅ Concrete examples and usage patterns  
-✅ Testing and validation procedures  
-✅ Error handling and debugging guidance  
-✅ Performance expectations and benchmarks
+Monitor `LOOP_STATE.md` to watch progress. The loop runs without human confirmation.
 
 ---
 
-## 6️⃣ Implementation Success Criteria
+## Effort Levels
 
-**Documentation Quality Benchmarks**:
-- Each file contains specific, actionable instructions without ambiguity
-- Function signatures, parameter values, and configurations are explicitly defined
-- Implementation dependencies are clearly mapped with execution order
-- Testing and validation procedures are comprehensive and automated
-- Expected performance ranges and troubleshooting guidance are included
+Control depth and rigor with `--effort`:
 
-**Claude Code Readiness Indicators**:
-- No external research required beyond generated documentation
-- All technical decisions have been pre-resolved with clear reasoning
-- Complete dependency management with version specifications
-- Modular design enables incremental development and testing
-- Error handling and debugging strategies are well-defined
+| Level | Max Iterations | Tolerance | Coverage |
+|-------|---------------|-----------|----------|
+| `lite` | 5 | 15% | Primary metrics only |
+| `balanced` *(default)* | 10 | 10% | All primary metrics |
+| `max` | 20 | 5% | Primary + secondary + ablations |
+| `beast` | 50 | 2% | Everything + assurance audits |
 
----
-
-## 7️⃣ Recommended Tools
-- **Claude 4** – 🧠 Optimal for generating comprehensive documentation with the advanced prompt framework  
-- **GPT-5** – 🤖 Strong reasoning capabilities for complex paper analysis and structured output  
-- **Grok 4** – ⚡ Excellent for iterative refinement and quick documentation generation  
+```
+/reproduce --effort max
+```
 
 ---
 
-## 8️⃣ License
-MIT License
+## Available Skills
+
+Copy `skills/` to `.claude/commands/` in your target project to enable:
+
+| Command | Purpose |
+|---------|---------|
+| `/reproduce [--effort] [--reviewer]` | Start or resume the full loop |
+| `/evaluate [--verbose]` | Check progress without running experiments |
+| `/loop-once [--focus metric]` | Run exactly one iteration |
+| `/debug-gap [--metric] [--depth]` | Diagnose why a specific metric is failing |
+| `/reproduce-status` | Quick status snapshot from LOOP_STATE.md |
+
+---
+
+## Key Design Principles
+
+### From karpathy/autoresearch
+- **Simplicity**: the loop is implement → execute → evaluate → iterate. No unnecessary complexity.
+- **Single-metric focus per iteration**: target the worst-failing metric with a surgical fix
+- **Git-based tracking**: every iteration is a checkpoint — nothing gets lost
+- **No stopping until human says so**: the loop runs relentlessly until success
+
+### From ARIS (wanshuiyin/Auto-claude-code-research-in-sleep)
+- **Composable Markdown skills**: each `/command` is a plain `SKILL.md` file — works across any Claude Code setup
+- **Effort levels**: `lite → balanced → max → beast` independently control depth
+- **Artifact-based communication**: skills pass information through files (LOOP_STATE.md), not memory
+- **Shared contracts**: `effort-contract.md` and `loop-contract.md` ensure skill consistency
+- **Cross-model review**: optional `--reviewer codex|gpt` for adversarial code review
+
+### fxxk-coming-soon specific
+- **Paper as oracle**: the paper's reported metrics ARE the success criteria — no subjective judgment
+- **Machine-readable targets**: `Paper Target Metrics` YAML in `DATA_AND_EVAL.md` parsed directly by the loop
+- **Reproducibility focus**: every design choice optimizes for matching paper results, not novel research
+
+---
+
+## What Gets Generated on Success
+
+```
+project/
+├── REPRODUCTION_REPORT.md     # Full comparison table + notes
+├── LOOP_STATE.md              # Complete iteration history
+├── logs/
+│   ├── iter_1.log
+│   ├── iter_2.log
+│   └── iter_N.log
+└── results/
+    ├── iter_1/
+    ├── iter_2/
+    └── best_checkpoint/
+```
+
+---
+
+## Recommended LLMs for Stage 1 (Documentation Generation)
+
+- **Claude Opus 4.7** — Best for complex methodologies, multi-component architectures
+- **GPT-5** — Strong structured output, good at extracting exact hyperparameters
+- **Grok 4** — Fast iteration, good for quick documentation drafts
+
+---
+
+## License
+
+MIT

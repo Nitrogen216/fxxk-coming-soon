@@ -109,7 +109,7 @@ Generate four interconnected Markdown files that form a complete implementation 
 
 ### 3. DATA_AND_EVAL.md - Data and Evaluation Specifications
 
-**PURPOSE**: Define exact data handling procedures and evaluation protocols for reproducing paper results.
+**PURPOSE**: Define exact data handling procedures and evaluation protocols for reproducing paper results. This file also provides machine-readable targets for the autonomous reproduction loop.
 
 **REQUIRED SECTIONS**:
 - **Research Context**: What specific research question is being answered and what results to reproduce
@@ -146,7 +146,43 @@ Generate four interconnected Markdown files that form a complete implementation 
   - Environment configuration
   - Expected output file formats and locations
 
-**CLAUDE CODE INTEGRATION**: Each section includes specific function names and file paths for implementation.
+- **Paper Target Metrics** *(REQUIRED for autonomous loop — machine-readable YAML block)*:
+
+  This section is parsed by the reproduction loop agent to determine success criteria.
+  Every metric that the paper reports as a main result must appear here.
+
+  ```yaml
+  ## Paper Target Metrics
+  # Source: Table N / Figure N / Section N of paper
+  # Tolerance default: 10% (override in LOOP_STATE.md)
+  primary_metrics:
+    - name: accuracy          # exact metric name used in eval code
+      value: 0.847            # paper's reported number
+      higher_is_better: true
+      source: "Table 2, row 'Ours'"
+      eval_command: "python eval.py --metric accuracy"
+    - name: f1_score
+      value: 0.762
+      higher_is_better: true
+      source: "Table 2, row 'Ours'"
+      eval_command: "python eval.py --metric f1"
+
+  secondary_metrics:          # checked only at --effort max or beast
+    - name: training_time_hours
+      value: 4.2
+      higher_is_better: false
+      source: "Section 4.1"
+      eval_command: null      # measured during training run
+
+  ablation_targets:           # checked only at --effort beast
+    - name: accuracy_without_component_X
+      value: 0.801
+      higher_is_better: true
+      source: "Table 3, ablation row '-X'"
+      eval_command: "python eval.py --ablation no_component_x"
+  ```
+
+**CLAUDE CODE INTEGRATION**: Each section includes specific function names and file paths for implementation. The `Paper Target Metrics` YAML is parsed directly by the loop agent.
 
 
 
@@ -190,6 +226,20 @@ Generate four interconnected Markdown files that form a complete implementation 
   - Areas where human review might be needed
 
 **FORMAT REQUIREMENT**: Each risk includes specific actionable guidance for Claude Code implementation.
+
+
+
+## Agent Loop Integration
+
+**AUTONOMOUS REPRODUCTION LOOP**: The generated documentation is designed to power a continuous implementation-evaluation loop. After generating the four files, copy `AGENT_LOOP_PROMPT.md` and `LOOP_STATE.md` (from fxxk-coming-soon templates) into your project. The loop agent will:
+
+1. Implement the codebase following `IMPLEMENTATION_PLAN.md`
+2. Run experiments and evaluate against `Paper Target Metrics` in `DATA_AND_EVAL.md`
+3. Diagnose gaps using `RISKS_AND_NOTES.md` as a reference
+4. Apply fixes and iterate until all primary metrics pass within tolerance
+5. Write a `REPRODUCTION_REPORT.md` on success
+
+**KEY REQUIREMENT**: The `Paper Target Metrics` YAML block in `DATA_AND_EVAL.md` is **mandatory** — the loop agent cannot function without machine-readable targets. Every main result table from the paper must appear there with exact values.
 
 
 
@@ -253,7 +303,7 @@ Generate four interconnected Markdown files that form a complete implementation 
 ✅ Error handling and debugging guidance
 ✅ Performance expectations and benchmarks
 
-**SUCCESS CRITERION**: An experienced developer using only these four files should be able to reproduce the paper's main results without consulting the original paper or external resources.
+**SUCCESS CRITERION**: The autonomous loop agent using only these four files plus `AGENT_LOOP_PROMPT.md` should be able to reproduce the paper's main results without human intervention. All primary metrics in `Paper Target Metrics` should be achieved within 10% tolerance (balanced effort) in ≤10 iterations.
 
 ---
 

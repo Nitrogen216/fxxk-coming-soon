@@ -1,68 +1,108 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with the **fxxk-coming-soon** repository itself (not paper reproduction projects).
+
+---
 
 ## Project Overview
 
-**fxxk-coming-soon** is a documentation framework that bridges the gap between research papers and executable code. The repository contains:
+**fxxk-coming-soon** is a two-stage autonomous paper reproduction framework:
 
-- A master prompt template (`PAPER_TO_CODE_PROMPT.md`) for generating structured implementation documentation
-- Markdown templates for organizing project planning
-- A workflow designed specifically for Claude Code autonomous implementation
+1. **Stage 1 — Documentation Generation**: `PAPER_TO_CODE_PROMPT.md` is a master LLM prompt that converts research papers into 4 structured `.md` files forming a complete implementation blueprint.
 
-The core concept: Use the prompt template with an LLM to convert research papers into 4 structured `.md` files, then use Claude Code to implement the actual codebase following this documentation.
+2. **Stage 2 — Autonomous Reproduction Loop**: `AGENT_LOOP_PROMPT.md` is a master loop controller that directs Claude Code to run a continuous implement→execute→evaluate→improve loop until paper metrics are reproduced.
+
+The repository also provides 5 composable skills (in `skills/`) and templates (in `templates/`) for use in target paper reproduction projects.
+
+---
 
 ## Repository Architecture
 
 ```
 fxxk-coming-soon/
-├── README.md                  # Main project documentation
-├── PAPER_TO_CODE_PROMPT.md    # Master prompt template (200+ lines)
-├── templates/                 # Blank Markdown templates in Chinese
-│   ├── PROJECT_STRUCTURE.md
-│   ├── IMPLEMENTATION_PLAN.md
-│   ├── DATA_AND_EVAL.md
-│   └── RISKS_AND_NOTES.md
-└── example/                   # Directory for example outputs
+├── PAPER_TO_CODE_PROMPT.md    # Stage 1: LLM prompt for doc generation
+├── AGENT_LOOP_PROMPT.md       # Stage 2: master loop controller
+│
+├── skills/                    # Claude Code slash commands
+│   ├── reproduce/SKILL.md         # /reproduce — run the full loop
+│   ├── evaluate/SKILL.md          # /evaluate — check metrics
+│   ├── loop-once/SKILL.md         # /loop-once — one iteration
+│   ├── debug-gap/SKILL.md         # /debug-gap — diagnose failures
+│   ├── reproduce-status/SKILL.md  # /reproduce-status — quick snapshot
+│   └── shared/
+│       ├── effort-contract.md     # effort level definitions
+│       └── loop-contract.md       # loop invariants
+│
+├── templates/                 # Templates for target projects
+│   ├── LOOP_STATE.md              # loop state tracker template
+│   ├── project-CLAUDE.md          # CLAUDE.md template for target projects
+│   ├── PROJECT_STRUCTURE.md       # architecture blueprint template
+│   ├── IMPLEMENTATION_PLAN.md     # implementation plan template
+│   ├── DATA_AND_EVAL.md           # data & evaluation template
+│   └── RISKS_AND_NOTES.md         # risks & notes template
+│
+└── README.md
 ```
 
-## Key Files and Their Purpose
+---
 
-### PAPER_TO_CODE_PROMPT.md
-- Main prompt template for LLM interaction
-- Contains detailed specifications for generating implementation documentation
-- Optimized for Claude Code autonomous coding workflows
-- Defines requirements for all 4 output documentation files
+## Key File Relationships
 
-### Template Files (templates/)
-- Currently contain basic Chinese template structures
-- Act as placeholders for the actual English documentation that gets generated
-- Define the schema that the prompt template produces
+```
+PAPER_TO_CODE_PROMPT.md
+    → (LLM generates) → PROJECT_STRUCTURE.md
+                         IMPLEMENTATION_PLAN.md
+                         DATA_AND_EVAL.md  ← must contain Paper Target Metrics YAML
+                         RISKS_AND_NOTES.md
 
-## Development Workflow
+AGENT_LOOP_PROMPT.md  ← reads all 4 generated files + LOOP_STATE.md
+    → runs loop → REPRODUCTION_REPORT.md (success)
+                  PROGRESS_REPORT.md (timeout)
 
-This repository supports a specific workflow:
+skills/reproduce/SKILL.md  ← user triggers with /reproduce
+    → follows → AGENT_LOOP_PROMPT.md
+```
 
-1. **Paper Analysis**: Use `PAPER_TO_CODE_PROMPT.md` with research paper content in an LLM
-2. **Documentation Generation**: LLM outputs 4 structured `.md` files
-3. **Project Setup**: Create new project folder with the generated documentation
-4. **Implementation**: Use Claude Code in that project to implement following the documentation
+---
 
-## Working with Documentation Templates
+## Development Notes
 
-When modifying templates or the prompt:
-- Templates are currently in Chinese but the generated outputs should be in English
-- The prompt template specifies Claude Code optimization requirements
-- Each template corresponds to a specific aspect of implementation planning
+### No Executable Code
+This is a documentation and template repository. There is no `package.json`, no build system, no tests. All files are Markdown.
 
-## No Build/Test Commands
+### Templates vs Skills
+- `templates/` — files that go INTO target paper reproduction projects
+- `skills/` — Claude Code slash commands that go into `.claude/commands/` of target projects
 
-This is a documentation repository with no executable code, package.json, or build processes. All files are Markdown documentation meant for human and LLM consumption.
+### The Loop Contract
+All skills must honor `skills/shared/loop-contract.md`. If you modify any skill, verify it still respects:
+- Always reads/writes `LOOP_STATE.md`
+- Increments iteration_count at start of iteration
+- Checks stopping conditions in correct priority order
 
-## Claude Code Implementation Notes
+### Paper Target Metrics (Critical)
+The `## Paper Target Metrics` YAML section in `DATA_AND_EVAL.md` (generated by Stage 1) is the only machine-readable interface between the documentation and the loop agent. It must use the exact format specified in `PAPER_TO_CODE_PROMPT.md`. Without it, the loop agent cannot determine success criteria.
 
-When working on actual implementation projects using this framework:
-- The generated documentation will specify exact function signatures and module dependencies
-- Implementation should follow the modular approach outlined in the generated `IMPLEMENTATION_PLAN.md`
-- Testing structure will be defined in the project-specific documentation
-- Configuration and dependencies will be specified in the generated `PROJECT_STRUCTURE.md`
+---
+
+## How to Add a New Skill
+
+1. Create `skills/<skill-name>/SKILL.md`
+2. Define: invocation syntax, purpose, execution steps, output format
+3. Ensure the skill respects `loop-contract.md` if it touches `LOOP_STATE.md`
+4. Reference the new skill in `AGENT_LOOP_PROMPT.md` under Quick Start Commands
+5. Update `README.md → Available Skills` table
+
+---
+
+## Workflow for Users of This Framework
+
+When users work on paper reproduction projects, they:
+1. Use `PAPER_TO_CODE_PROMPT.md` with an LLM to generate 4 documentation files
+2. Copy `AGENT_LOOP_PROMPT.md` to their project root
+3. Copy `templates/LOOP_STATE.md` to their project root
+4. Copy `templates/project-CLAUDE.md` to their `CLAUDE.md`
+5. Copy `skills/` to their `.claude/commands/`
+6. Run `/reproduce` in Claude Code
+
+This repository itself is never modified during paper reproduction — it is a framework, not a workspace.
