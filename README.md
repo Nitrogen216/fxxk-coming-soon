@@ -22,14 +22,33 @@ fxxk-coming-soon/
 ├── AGENT_LOOP_PROMPT.md       # Stage 2: master loop controller for Claude Code
 │
 ├── skills/                    # Claude Code slash commands (copy to target project)
-│   ├── reproduce/SKILL.md         # /reproduce — start the loop
-│   ├── evaluate/SKILL.md          # /evaluate — check current progress
-│   ├── loop-once/SKILL.md         # /loop-once — one manual iteration
-│   ├── debug-gap/SKILL.md         # /debug-gap — analyze failing metrics
+│   │
+│   │   # Loop Control
+│   ├── reproduce/SKILL.md         # /reproduce — start the full loop
+│   ├── loop-once/SKILL.md         # /loop-once — single iteration, manual control
+│   ├── extend-loop/SKILL.md       # /extend-loop — add iterations to exhausted loop
+│   ├── reset-loop/SKILL.md        # /reset-loop — fresh start (preserves code)
+│   │
+│   │   # Status & Evaluation
 │   ├── reproduce-status/SKILL.md  # /reproduce-status — quick snapshot
+│   ├── evaluate/SKILL.md          # /evaluate — check metrics vs targets
+│   ├── write-report/SKILL.md      # /write-report — generate formal report
+│   │
+│   │   # Execution
+│   ├── setup-env/SKILL.md         # /setup-env — init environment + download data
+│   ├── run-experiment/SKILL.md    # /run-experiment — execute with logging
+│   ├── save-checkpoint/SKILL.md   # /save-checkpoint — git snapshot
+│   │
+│   │   # Diagnosis
+│   ├── debug-gap/SKILL.md         # /debug-gap — diagnose metric failures
+│   ├── check-impl/SKILL.md        # /check-impl — audit code vs paper docs
+│   │
+│   │   # Paper Analysis
+│   ├── paper-parse/SKILL.md       # /paper-parse — extract info from paper
+│   │
 │   └── shared/
 │       ├── effort-contract.md     # effort level definitions (lite/balanced/max/beast)
-│       └── loop-contract.md       # invariants all skills must follow
+│       └── loop-contract.md       # invariants all loop skills must honor
 │
 ├── templates/                 # Templates for target paper reproduction projects
 │   ├── LOOP_STATE.md              # Loop state tracker (copy to target project)
@@ -116,15 +135,45 @@ Control depth and rigor with `--effort`:
 
 ## Available Skills
 
-Copy `skills/` to `.claude/commands/` in your target project to enable:
+Copy `skills/` to `.claude/commands/` in your target project to enable all 13 skills:
+
+### Loop Control
 
 | Command | Purpose |
 |---------|---------|
-| `/reproduce [--effort] [--reviewer]` | Start or resume the full loop |
-| `/evaluate [--verbose]` | Check progress without running experiments |
-| `/loop-once [--focus metric]` | Run exactly one iteration |
-| `/debug-gap [--metric] [--depth]` | Diagnose why a specific metric is failing |
+| `/reproduce [--effort] [--reviewer]` | Start or resume the full autonomous loop |
+| `/loop-once [--focus metric] [--phase]` | Run exactly one iteration manually |
+| `/extend-loop [--add-iterations N]` | Add iterations to an exhausted loop |
+| `/reset-loop [--keep-history] [--hard]` | Fresh start, preserving code by default |
+
+### Status & Evaluation
+
+| Command | Purpose |
+|---------|---------|
 | `/reproduce-status` | Quick status snapshot from LOOP_STATE.md |
+| `/evaluate [--verbose]` | Check progress without running experiments |
+| `/write-report [--type success|progress]` | Generate formal reproduction report |
+
+### Execution
+
+| Command | Purpose |
+|---------|---------|
+| `/setup-env [--gpu] [--skip-data]` | Initialize environment and download datasets |
+| `/run-experiment [--dry-run] [--tag]` | Execute experiment with logging and error recovery |
+| `/save-checkpoint [--message]` | Git-commit current state as recoverable snapshot |
+
+### Diagnosis
+
+| Command | Purpose |
+|---------|---------|
+| `/debug-gap [--metric] [--depth]` | Diagnose why a specific metric is failing |
+| `/check-impl [--section] [--strict]` | Audit code against all paper documentation |
+
+### Paper Analysis
+
+| Command | Purpose |
+|---------|---------|
+| `/paper-parse [--file] [--focus]` | Extract metrics/arch/hyper from paper (pre-Stage 1) |
 
 ---
 

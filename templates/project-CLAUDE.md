@@ -31,13 +31,23 @@ This is an autonomous paper reproduction project managed by the **fxxk-coming-so
 
 ## Quick Start
 
+### Before first run — extract paper targets (optional but recommended)
+```
+/paper-parse --file paper.pdf --focus metrics
+```
+
+### Set up environment and download datasets
+```
+/setup-env
+```
+
 ### Start autonomous reproduction
 ```
 /reproduce
 ```
 Runs the full loop automatically until success or max iterations.
 
-### Check current progress
+### Check current progress (no re-running)
 ```
 /evaluate
 ```
@@ -49,12 +59,32 @@ Runs the full loop automatically until success or max iterations.
 
 ### Debug a specific failing metric
 ```
-/debug-gap --metric accuracy
+/debug-gap --metric accuracy --depth deep
 ```
 
 ### Check status at a glance
 ```
 /reproduce-status
+```
+
+### Loop ran out of iterations? Extend it
+```
+/extend-loop --add-iterations 5
+```
+
+### Audit implementation completeness
+```
+/check-impl --section all
+```
+
+### Generate formal report at any time
+```
+/write-report
+```
+
+### Save current state as a git checkpoint
+```
+/save-checkpoint --message "iter 6: f1 improved to 75.4%"
 ```
 
 ---

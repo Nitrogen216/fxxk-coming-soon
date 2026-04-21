@@ -304,25 +304,62 @@ fixes_applied:
 
 ---
 
-## Quick Start Commands
+## Skill Reference
 
-Available as slash commands in `.claude/commands/`:
+All available as slash commands in `.claude/commands/`:
 
+### Loop Control
 ```
 /reproduce [--effort lite|balanced|max|beast] [--reviewer none|codex|gpt]
-    Start or resume the full reproduction loop
+    Start or resume the full autonomous reproduction loop
+
+/loop-once [--focus metric_name] [--phase implement|execute|evaluate]
+    Run exactly one iteration with full control
+
+/extend-loop [--add-iterations N] [--effort level] [--tighten-tolerance]
+    Add more iterations to an exhausted (timeout) loop
+
+/reset-loop [--keep-history] [--keep-code] [--hard]
+    Reset loop state for a fresh run (preserves code by default)
+```
+
+### Status & Evaluation
+```
+/reproduce-status
+    Quick status snapshot from LOOP_STATE.md
 
 /evaluate [--verbose]
     Check current progress without running experiments
 
-/loop-once [--focus metric_name]
-    Run exactly one iteration of the loop
+/write-report [--type success|progress|failed] [--compare-table]
+    Generate formal reproduction report (auto-detected from loop state)
+```
 
+### Execution
+```
+/setup-env [--python 3.10|3.11|3.12] [--gpu] [--skip-data]
+    Initialize environment, install dependencies, download datasets
+
+/run-experiment [--config path] [--dry-run] [--resume] [--tag label]
+    Execute the experiment pipeline with logging and error recovery
+
+/save-checkpoint [--message "description"] [--tag label]
+    Git-commit current state as a recoverable snapshot
+```
+
+### Diagnosis
+```
 /debug-gap [--metric name] [--depth shallow|deep]
-    Analyze why a specific metric is failing
+    Systematically diagnose why a specific metric is failing
 
-/reproduce-status
-    Print a compact status table from LOOP_STATE.md
+/check-impl [--section all|structure|plan|eval] [--strict]
+    Audit implementation against all paper documentation files
+```
+
+### Paper Analysis (Pre-Stage 1)
+```
+/paper-parse [--file path] [--focus metrics|arch|data|hyper|all]
+    Extract key implementation info from the paper before generating docs
 ```
 
 ---
