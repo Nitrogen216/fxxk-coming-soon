@@ -1,130 +1,105 @@
-# /run-experiment — Execute Experiment with Logging
-
-**Invocation**: `/run-experiment [--config path] [--dry-run] [--resume] [--tag label]`
-
+---
+name: run-experiment
+description: Execute the paper reproduction experiment pipeline with structured logging, automatic error classification (dependency/logic/data/oom), up to 3 retries, and best-checkpoint tracking.
+when_to_use: Use to run the main experiment, test a configuration change, do a dry-run sanity check, or resume from a checkpoint.
+argument-hint: "[--config path] [--dry-run] [--resume] [--tag label]"
+allowed-tools:
+  - Bash
+  - Read
+  - Write
 ---
 
-## Purpose
+# Execute Experiment
 
-Execute the main experiment pipeline from `IMPLEMENTATION_PLAN.md → Entry Points` with structured logging, error classification, and automatic recovery. This skill is the execution engine called by the reproduction loop — it can also be invoked standalone for debugging or manual runs.
+**Arguments**: $ARGUMENTS
 
-Use standalone when:
-- You want to re-run a specific configuration without triggering a full loop iteration
-- Debugging execution failures interactively
-- Testing a specific code change before committing it to the loop
+## Current Iteration
+!`python3 -c "
+try:
+    c=open('LOOP_STATE.md').read()
+    for l in c.splitlines():
+        if 'iteration_count' in l: print(l.strip())
+except: print('iteration_count: unknown')
+" 2>/dev/null`
 
----
+## Available Configs
+!`ls configs/*.yaml configs/*.yml 2>/dev/null || echo "No config files found yet"`
 
-## Pre-Execution Checks
+## Instructions
 
-Before running:
-1. Verify `venv` is activated — run `python -c "import sys; print(sys.prefix)"` and check it's the project venv
-2. Verify the config file exists: `configs/paper_config.yaml` (or `--config` path)
-3. Check disk space: estimated log + checkpoint size vs available space
-4. If `--resume`: find the latest checkpoint in `results/` and pass it to the training script
+Parse `$ARGUMENTS`:
+- `--config <path>` → use this config file (default: `configs/paper_config.yaml`)
+- `--dry-run` → append `--max_steps 10` or equivalent; just verify the execution path
+- `--resume` → find latest checkpoint in `results/` and pass to training script
+- `--tag <label>` → attach label to logs for this run
 
----
+**Current iteration N**: read from `LOOP_STATE.md → iteration_count`.
 
-## Execution
+### Pre-run Checks
 
-### Determine Run Command
+1. Verify venv is activated: `python -c "import sys; print(sys.prefix)"`
+2. Verify config file exists
+3. Estimate disk usage; warn if < 10GB available
+4. If `--resume`: find `results/iter_${N-1}/final_checkpoint/` or `results/best_checkpoint/`
 
-From `IMPLEMENTATION_PLAN.md → Entry Points`, extract the main execution command. Common patterns:
+### Execution
 
 ```bash
-# Training run
-python main.py --config configs/paper_config.yaml
+source venv/bin/activate
 
-# With specific output directory (use current iteration number)
 python main.py \
-  --config configs/paper_config.yaml \
+  --config $CONFIG \
   --output results/iter_${N}/ \
-  --seed 42
-```
-
-If `--dry-run`: append `--max_steps 10` or equivalent to run only a few steps for sanity checking.
-
-### Logging
-
-Pipe all output to iteration log:
-
-```bash
-python main.py --config configs/paper_config.yaml \
+  --seed 42 \
+  $([[ --dry-run ]] && echo "--max_steps 10") \
+  $([[ --resume ]] && echo "--resume $CHECKPOINT") \
   2>&1 | tee logs/iter_${N}.log
 ```
 
-Also write a metadata file `logs/iter_${N}_meta.json`:
-
+Write metadata before running:
 ```json
 {
-  "iteration": 3,
-  "tag": "fix-lr-warmup",
-  "start_time": "2024-01-15T14:23:00Z",
-  "config": "configs/paper_config.yaml",
-  "git_hash": "abc1234",
+  "iteration": N, "tag": "$TAG",
+  "start_time": "ISO timestamp",
+  "config": "$CONFIG",
+  "git_hash": "$(git rev-parse --short HEAD)",
   "status": "running"
 }
 ```
+→ save to `logs/iter_${N}_meta.json`
 
 ### Progress Monitoring
 
-While the experiment runs, periodically check `logs/iter_${N}.log` for:
-- Training loss trend (should decrease, not explode)
-- Validation metrics appearing (confirms evaluation is running)
-- OOM errors or CUDA errors (exit immediately)
-- `NaN` in loss (stop, log, report `logic_error`)
+While running, watch `logs/iter_${N}.log` for:
+- Loss diverging (NaN, inf, > 100× initial) → stop immediately
+- OOM error → attempt batch size halving, restart
+- Periodic metric reports → confirm evaluation is running
 
-Report progress every 10 minutes or on significant events.
+### Error Classification & Recovery
 
----
-
-## Error Classification & Recovery
-
-| Error Pattern | Type | Auto-Recovery |
-|--------------|------|---------------|
-| `ModuleNotFoundError` | `dependency_error` | `pip install <package>`, retry once |
+| Error Pattern | Type | Auto-fix |
+|--------------|------|---------|
+| `ModuleNotFoundError` | `dependency_error` | `pip install <pkg>`, retry once |
 | `RuntimeError: CUDA out of memory` | `oom_error` | Halve batch size in config, retry |
-| `FileNotFoundError: data/...` | `data_error` | Run `/setup-env --skip-pip`, retry once |
-| `AssertionError`, shape mismatch | `logic_error` | Log, no retry — needs code fix |
-| `loss: nan` after step N | `logic_error` | Log last valid checkpoint, stop |
-| Process killed (OOM RAM) | `oom_error` | Reduce workers/prefetch, retry |
+| `FileNotFoundError: data/` | `data_error` | Run `/setup-env --skip-pip`, retry once |
+| `loss: nan` | `logic_error` | Save checkpoint, stop — needs code fix |
+| `AssertionError`, shape mismatch | `logic_error` | Stop — needs code fix |
 
-After 3 retries with no success: update `LOOP_STATE.md` with `execution_failed: true` and the error details.
+After 3 retries with no success: log to `LOOP_STATE.md` as `execution_failed: true`, do not retry further.
 
----
-
-## Post-Execution
+### Post-run
 
 On success:
-1. Parse final metrics from `logs/iter_${N}.log` (patterns from `DATA_AND_EVAL.md`)
-2. Save final model checkpoint to `results/iter_${N}/final_checkpoint/`
-3. Copy best checkpoint to `results/best_checkpoint/` if metrics improved
-4. Update `logs/iter_${N}_meta.json`: set `status = "complete"`, `end_time`, `duration_minutes`
-
-Print execution summary:
+1. Save checkpoint to `results/iter_${N}/final_checkpoint/`
+2. If metrics improved: copy to `results/best_checkpoint/`
+3. Update `logs/iter_${N}_meta.json`: `status=complete`, `end_time`, `duration_minutes`
 
 ```
-Experiment Complete — Iteration 4
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Tag:       fix-lr-warmup
- Duration:  23m 41s  |  GPU peak: 11.2 GB
- Log:       logs/iter_4.log
- Checkpoint: results/iter_4/final_checkpoint/
-
- Final metrics seen in log:
-   val_accuracy: 0.839
-   val_f1:       0.754
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Next: /evaluate to compare against paper targets
+Experiment Complete — Iteration 4 | tag: fix-f1-averaging
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Duration: 23m 41s  |  GPU peak: 11.2 GB
+ Log: logs/iter_4.log
+ Final metrics in log: val_accuracy=0.839, val_f1=0.754
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Next: /evaluate
 ```
-
----
-
-## Flags
-
-| Flag | Effect |
-|------|--------|
-| `--config path` | Use alternate config file (default: `configs/paper_config.yaml`) |
-| `--dry-run` | Run 10 steps only — verifies execution path without full training |
-| `--resume` | Load latest checkpoint before running |
-| `--tag label` | Attach a label to this run's logs (e.g., `--tag fix-dropout`) |

@@ -29,7 +29,7 @@ Before generating documentation, perform systematic analysis:
 
 ## Output Specification
 
-Generate four interconnected Markdown files that form a complete implementation blueprint:
+Generate **five** interconnected Markdown files that form a complete implementation blueprint plus autonomous control policy:
 
 **FRAMEWORK PRINCIPLE**: Each file must be actionable by Claude Code without requiring external clarification or human interpretation.
 
@@ -240,6 +240,50 @@ Generate four interconnected Markdown files that form a complete implementation 
 5. Write a `REPRODUCTION_REPORT.md` on success
 
 **KEY REQUIREMENT**: The `Paper Target Metrics` YAML block in `DATA_AND_EVAL.md` is **mandatory** — the loop agent cannot function without machine-readable targets. Every main result table from the paper must appear there with exact values.
+
+
+
+### 5. CLAIMS_AND_GATES.md — Reproduction Control Policy
+
+**PURPOSE**: Define the paper's core claims and milestone gates that govern the autonomous reproduction loop. This file answers: "What exactly needs to be reproduced, in what order, and what counts as done?"
+
+**REQUIRED SECTIONS**:
+
+- **Paper Claims** (freeze these from the paper — do not reinterpret):
+  - **Primary claim**: The main contribution the paper asserts (one sentence)
+  - **Supporting claims**: Secondary results that validate the main claim
+  - **Anti-claims**: What the paper explicitly does NOT claim (prevents overreach)
+  - **Minimum convincing evidence**: What a skeptic would need to see to accept each claim
+
+- **Baseline Definition** *(critical — must come before method reproduction)*:
+  - What is the baseline model/method that the proposed approach is compared against?
+  - What metric values does the paper report for this baseline?
+  - These become M1 targets (must be reproduced before attempting M2)
+
+- **Milestone Gate Table**:
+
+  | Gate | Name | Pass Condition | Failure Interpretation | Fallback Action |
+  |------|------|---------------|----------------------|-----------------|
+  | M0 | Sanity | `python main.py --dry-run` exits 0; data loads; imports work | Environment/code issue | Run `/setup-env`, fix errors |
+  | M1 | Baseline | Baseline metrics within tolerance (see Baseline Definition) | Data/implementation issue, NOT method issue | Fix data pipeline before touching method code |
+  | M2 | Method | All primary metrics in `Paper Target Metrics` within tolerance | Method implementation gap | Run loop at higher effort, `/debug-gap` |
+  | M3 | Ablation | Ablation targets match paper's ablation table (effort=max/beast) | Component implementation issue | Skip if `effort < max` |
+  | M4 | Review | External reviewer scores ≥ 7/10 and returns `ready` or `almost` (effort=beast) | Evaluation credibility issue | Run `/handoff-review`, fix blockers |
+
+- **Claim-to-Gate Mapping**: For each paper claim, which gate must pass to support it
+- **Narrowing Protocol**: If M2 cannot be achieved, define what "partial reproduction" means — which subset of results is still meaningful and citable
+- **Assumption Ladder**: For each ambiguous paper detail:
+  ```
+  Assumption N:
+    detail: "[What is unclear in the paper]"
+    default: "[Your interpretation]"
+    rationale: "[Why this interpretation is most likely]"
+    fallback: "[Alternative interpretation to try if default fails]"
+    validation: "[How to test which interpretation is correct]"
+    gate: M1|M2|M3
+  ```
+
+**QUALITY STANDARD**: The CLAIMS_AND_GATES.md file must contain enough information for an external reviewer to independently verify that reproduction was attempted fairly and the right things were measured.
 
 
 

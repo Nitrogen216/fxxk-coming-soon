@@ -1,77 +1,76 @@
-# /reproduce — Start Autonomous Paper Reproduction
-
-**Invocation**: `/reproduce [--effort lite|balanced|max|beast] [--reviewer none|codex|gpt]`
-
+---
+name: reproduce
+description: Start or resume the autonomous paper reproduction loop. Implements code, runs experiments, evaluates against Paper Target Metrics in DATA_AND_EVAL.md, diagnoses gaps, and iterates until all metrics pass or budget is exhausted. Supports effort levels and optional cross-model review.
+when_to_use: Use when starting a paper reproduction project, resuming after a break, or running the full autonomous loop from scratch.
+argument-hint: "[--effort lite|balanced|max|beast] [--reviewer none|codex|gpt]"
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+context: fork
 ---
 
-## Purpose
+# Autonomous Paper Reproduction Loop
 
-Start or resume the full autonomous paper reproduction loop. Reads all 4 documentation files, initializes state, and runs continuously until success criteria are met or max iterations are exhausted.
+**Arguments**: $ARGUMENTS
 
-This is the primary entry point. Call it once and let it run.
+## Current Project State
+!`cat LOOP_STATE.md 2>/dev/null || echo "LOOP_STATE.md not found — will initialize from template"`
 
----
+## Pre-flight Check
 
-## Pre-flight Checklist
+Verify these files exist before starting. Stop and report if any are missing:
+- `PROJECT_STRUCTURE.md`
+- `IMPLEMENTATION_PLAN.md`
+- `DATA_AND_EVAL.md` (must contain `## Paper Target Metrics` YAML block)
+- `RISKS_AND_NOTES.md`
+- `AGENT_LOOP_PROMPT.md`
 
-Before entering the loop, verify:
+If `LOOP_STATE.md` is missing, create it from `templates/LOOP_STATE.md`.
 
-```
-[ ] PROJECT_STRUCTURE.md    — architecture blueprint exists
-[ ] IMPLEMENTATION_PLAN.md  — step-by-step guide exists
-[ ] DATA_AND_EVAL.md        — contains "## Paper Target Metrics" section
-[ ] RISKS_AND_NOTES.md      — challenge guidance exists
-[ ] AGENT_LOOP_PROMPT.md    — master loop controller exists
-```
+## Argument Parsing
 
-If any file is missing: report exactly which files are absent, stop.
+Parse `$ARGUMENTS` for flags:
+- `--effort lite|balanced|max|beast` → update `LOOP_STATE.md` effort field
+- `--reviewer none|codex|gpt` → update `LOOP_STATE.md` reviewer field
 
----
+Effort defaults if not specified: inherit from `LOOP_STATE.md`, else `balanced`.
 
-## Argument Handling
+## State Check
 
-Parse invocation arguments and apply to `LOOP_STATE.md`:
-
-| Argument | Default | Effect |
-|----------|---------|--------|
-| `--effort lite` | — | max_iter=5, tolerance=15% |
-| `--effort balanced` | ✓ | max_iter=10, tolerance=10% |
-| `--effort max` | — | max_iter=20, tolerance=5% |
-| `--effort beast` | — | max_iter=50, tolerance=2% + ablations |
-| `--reviewer none` | ✓ | No cross-model review |
-| `--reviewer codex` | — | GPT-based code review after implementation |
-| `--reviewer gpt` | — | GPT-based code review after implementation |
-
-If `LOOP_STATE.md` already exists with a different effort level: honor the existing setting unless user explicitly passes `--effort`.
-
----
+Read `LOOP_STATE.md`:
+- `status == "success"` → print results table, offer to continue at higher effort
+- `status == "timeout"` → print best results, suggest `/extend-loop --add-iterations 5`
+- `status == "blocked"` → print blocking error, suggest manual fix + `/reproduce`
+- Otherwise → continue from `iteration_count`
 
 ## Execution
 
-1. **Parse arguments** — apply effort and reviewer settings to `LOOP_STATE.md`
-2. **State check** — read `LOOP_STATE.md`:
-   - `status == "success"` → print results table, ask if user wants `--effort max` run
-   - `status == "timeout"` → print progress, offer to continue with `--effort beast`
-   - `status == "blocked"` → print blocking error, suggest manual intervention
-   - Otherwise → continue from `iteration_count`
-3. **Execute loop** — follow `AGENT_LOOP_PROMPT.md` exactly:
-   - PHASE 0: Environment setup (first iteration only)
-   - PHASE 1: Implement / Improve
-   - PHASE 2: Execute
-   - PHASE 3: Evaluate
-   - PHASE 4: Diagnose & Decide → loop or stop
-4. **Report on completion** — print final status
+Follow `AGENT_LOOP_PROMPT.md` exactly. Run continuously through:
 
----
+```
+INITIALIZE → PHASE 0 (first iter) → PHASE 1 → PHASE 2 → PHASE 3 → PHASE 4 → loop
+```
 
-## Output on Completion
+**Milestone progression** (from `CLAIMS_AND_GATES.md` if it exists):
+1. M0 — sanity: dry-run passes
+2. M1 — baseline: baseline metrics within tolerance
+3. M2 — method: all primary metrics within tolerance → SUCCESS
+4. M3 — ablation (effort=max/beast only)
+5. M4 — external review (effort=beast or `--reviewer` set)
 
-Print a human-readable summary table:
+Do NOT jump to M2 without passing M1 first.
+
+## Completion Output
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Reproduction: [Paper Name]
  Status: SUCCESS | TIMEOUT | BLOCKED
+ Milestone: M2 passed | stuck at M1
  Iterations: N / max_N | Effort: balanced
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Metric       Target    Achieved  Gap      Status
@@ -80,6 +79,3 @@ Print a human-readable summary table:
  f1_score     76.2%     75.8%     0.5%     ✓ PASS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
-
-On success: announce `REPRODUCTION_REPORT.md` location.
-On failure: list top 3 remaining gaps and suggested next steps.

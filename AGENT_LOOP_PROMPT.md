@@ -15,7 +15,8 @@ Verify all of these exist before starting. If any are missing, report which ones
 | `PROJECT_STRUCTURE.md` | Architecture blueprint — module specs, function signatures |
 | `IMPLEMENTATION_PLAN.md` | Phase-by-phase implementation roadmap |
 | `DATA_AND_EVAL.md` | Target metrics, data pipelines, evaluation procedures |
-| `RISKS_AND_NOTES.md` | Known pitfalls, debugging strategies, assumptions |
+| `RISKS_AND_NOTES.md` | Known pitfalls, debugging strategies, assumption ladder |
+| `CLAIMS_AND_GATES.md` | Paper claims + milestone gate definitions (M0-M4) *(if missing: derive M0-M2 from DATA_AND_EVAL.md)* |
 | `LOOP_STATE.md` | Loop state tracker (create from template if missing) |
 
 ---
@@ -49,13 +50,16 @@ gpu_hour_limit: 4       # max GPU-hours per iteration before flagging
 
 Run once per session, before entering the loop:
 
-1. Read `LOOP_STATE.md` — if it doesn't exist, create it from the template in `templates/LOOP_STATE.md`
-2. Read `DATA_AND_EVAL.md` — locate the **`## Paper Target Metrics`** section; load all targets into memory
-3. Check current state:
-   - If `status == "success"`: print current results table and stop
-   - If `iteration_count >= max_iterations`: print timeout report and stop
-   - If `status == "blocked"`: print blocking issue and stop
-4. Otherwise: enter the loop at PHASE 1
+1. Read `LOOP_STATE.md` — if it doesn't exist, create it from the template
+2. Read `DATA_AND_EVAL.md` → **`## Paper Target Metrics`** — load all targets
+3. Read `CLAIMS_AND_GATES.md` → load milestone gate definitions (M0–M4)
+   - If missing: synthesize M0 (dry-run), M1 (baseline metrics), M2 (primary metrics) from DATA_AND_EVAL.md
+4. Determine current milestone from `LOOP_STATE.md → current_milestone`
+5. Check stopping conditions:
+   - `status == "success"` → print results table and stop
+   - `iteration_count >= max_iterations` → write PROGRESS_REPORT.md and stop
+   - `status == "blocked"` → print blocking issue and stop
+6. Otherwise: enter the loop at PHASE 0 (if `iteration_count == 0`) or PHASE 1
 
 ---
 
@@ -96,17 +100,23 @@ Steps:
   - Phase 4: Evaluation Framework (metrics, reporting)
 - After each phase: run its validation checkpoint before proceeding
 
-**Subsequent iterations** (`iteration_count > 1`):
-- Read `outstanding_issues` from `LOOP_STATE.md` — ordered by priority
-- Address the **top item** with a targeted, minimal fix
-- Do NOT rewrite working code — surgical changes only
-- Reference `RISKS_AND_NOTES.md` for guidance on this type of issue
-- Log each change to `LOOP_STATE.md` under `fixes_applied`
+**Milestone-aware implementation** (`iteration_count > 1`):
+
+Before choosing what to implement, check `LOOP_STATE.md → current_milestone`:
+- **M0 → M1 (baseline)**: Implement and evaluate the baseline first. Do NOT touch the proposed method code yet. The baseline must pass before method reproduction begins.
+- **M1 → M2 (method)**: Baseline is confirmed. Now implement the proposed method's key components.
+- **M2 → M3 (ablation)**: Only when `effort >= max`. Implement ablation variants.
+- **M2/M3 → M4 (review)**: Only when `effort == beast` or `reviewer != none`. Run `/handoff-review`.
+
+Then apply the top fix from `outstanding_issues` that matches the current milestone:
+- Do NOT rewrite working code — surgical, minimal changes only
+- Reference `RISKS_AND_NOTES.md → assumption_ladder` for ambiguous details
+- Log each change immediately to `LOOP_STATE.md → fixes_applied`
 
 **If `reviewer != none`** (cross-model review):
 - After implementation, prepare a code review summary (key changes, concerns)
 - Submit to reviewer model; wait for structured feedback
-- Incorporate feedback into the implementation before proceeding
+- Incorporate feedback before proceeding
 
 ---
 
@@ -150,42 +160,75 @@ pass_M = (gap_M <= tolerance)
 
 ---
 
+### ── PHASE 3.5: Plateau Check ───────────────────────────────────
+
+After every evaluation, check stagnation on the worst-failing metric:
+
+```
+If the metric improved < 1% (abs) for the last 3 consecutive iterations:
+  → Set plateau_detected: true in LOOP_STATE.md
+  → Classify plateau type:
+      A: monotone but slowing  → reduce LR by 10×
+      B: oscillating           → reduce LR + gradient clipping
+      C: hard ceiling          → /debug-gap --depth deep, re-examine metric formula
+      D: random walk           → fix all random seeds, reduce data stochasticity
+  → Apply type-specific escalation INSTEAD OF the usual top-priority fix
+```
+
+If plateau detected AND used ≥ 70% of iteration budget: proactively write `PROGRESS_REPORT.md` snapshot and suggest `/extend-loop` or strategy change — but continue unless max_iterations reached.
+
+---
+
 ### ── PHASE 4: Diagnose & Decide ─────────────────────────────────
 
-**Case A: ALL primary metrics pass** → `SUCCESS`
+**Check milestone gates first** (from `CLAIMS_AND_GATES.md`):
+
+- If current milestone is M0: verify `python main.py --dry-run` exits 0 → advance to M1
+- If current milestone is M1 (baseline): check baseline metrics pass → advance to M2
+- If current milestone is M2 (method): check all primary metrics pass → SUCCESS
+- If effort ≥ max and M2 passed: check ablation targets → advance to M3
+- If effort == beast and M3 passed: run `/handoff-review` → M4
+
+**Case A: Current milestone gate passes** → `ADVANCE MILESTONE`
+
+Update `LOOP_STATE.md → current_milestone`. If M2 passes → SUCCESS.
+
+**Case B: M2 metric ALL pass** → `SUCCESS`
 
 ```
-1. Write REPRODUCTION_REPORT.md (see Output Files section)
-2. Update LOOP_STATE.md: status = "success"
-3. Print success summary to user
-4. Stop the loop
+1. Write REPRODUCTION_REPORT.md
+2. Update LOOP_STATE.md: status = "success", current_milestone: "M2"
+3. If effort >= max: check M3 ablations before stopping
+4. Print success summary and stop
 ```
 
-**Case B: `iteration_count >= max_iterations`** → `TIMEOUT`
+**Case C: `iteration_count >= max_iterations`** → `TIMEOUT`
 
 ```
-1. Write PROGRESS_REPORT.md (see Output Files section)
+1. Write PROGRESS_REPORT.md: best milestone reached, remaining gaps
 2. Update LOOP_STATE.md: status = "timeout"
-3. Print: "Reached max iterations. Best results: [table]. Remaining gaps: [list]"
-4. Stop the loop
+3. Print: "Best milestone: M[N]. Best metrics: [table]. Remaining gaps: [list]"
+4. Suggest: /extend-loop --add-iterations 5  OR  /check-plateau
+5. Stop the loop
 ```
 
-**Case C: Metrics fail, iterations remain** → `DIAGNOSE AND CONTINUE`
+**Case D: Metrics fail, plateau detected** → `ESCALATE`
 
-For each failing metric, systematically investigate:
+Apply plateau-specific strategy (see PHASE 3.5). Continue loop.
+
+**Case E: Metrics fail, no plateau, iterations remain** → `DIAGNOSE AND CONTINUE`
 
 | Check | What to Look For |
 |-------|-----------------|
-| Data integrity | Wrong dataset split, incorrect preprocessing, label errors |
-| Architecture | Missing layer, wrong activation, incorrect dimensions |
-| Hyperparameters | LR, batch size, dropout differ from paper table |
-| Evaluation code | Wrong metric formula, wrong test split, missing normalization |
+| **Milestone order** | M1 (baseline) not confirmed before attempting M2? |
+| Data integrity | Wrong split, incorrect preprocessing, label errors |
+| Architecture | Missing layer, wrong activation, wrong dimensions |
+| Hyperparameters | Any value differs from `DATA_AND_EVAL.md → Experimental Protocols` |
+| Evaluation code | Wrong metric formula (macro vs micro), wrong test split |
+| Assumption ladder | Which assumption in `CLAIMS_AND_GATES.md` might be wrong? |
 | Numerical stability | NaN/Inf in gradients, loss explosion |
-| Random seeds | Non-deterministic operations not fixed |
 
-Cross-reference findings with `RISKS_AND_NOTES.md` → **Technical Risk Assessment**.
-
-Generate an ordered hypothesis list (most likely first). Update `outstanding_issues` in `LOOP_STATE.md`. Increment `iteration_count`. Return to **PHASE 1**.
+Generate ordered hypothesis list. Update `outstanding_issues`. Increment `iteration_count`. Return to **PHASE 1**.
 
 ---
 

@@ -1,111 +1,91 @@
-# /save-checkpoint — Snapshot Current Reproducible State
-
-**Invocation**: `/save-checkpoint [--message "description"] [--tag label]`
-
+---
+name: save-checkpoint
+description: Create a git commit capturing current code, configs, LOOP_STATE.md, and metrics. Auto-generates commit message from current metrics. Archives best model checkpoint metrics for recovery.
+when_to_use: Use after a successful iteration, before a risky code change, or at the end of a working session to ensure no progress is lost.
+argument-hint: '[--message "description"] [--tag label]'
+disable-model-invocation: false
+allowed-tools:
+  - Bash
+  - Read
 ---
 
-## Purpose
+# Save Reproducible Checkpoint
 
-Create a git commit that captures the current state: code, configuration, metrics, and loop state. This creates a recoverable snapshot so that no progress is ever lost between sessions or after bad experiments.
+**Arguments**: $ARGUMENTS
 
-Run this after a successful iteration, before a risky code change, or at the end of a working session.
+## Current Git Status
+!`git status --short 2>/dev/null | head -20`
 
----
+## Current Metrics
+!`python3 -c "
+try:
+    c = open('LOOP_STATE.md').read()
+    idx = c.find('latest_metrics')
+    if idx>=0: print(c[idx:idx+400])
+except: print('No metrics')
+" 2>/dev/null`
 
-## What Gets Committed
+## Instructions
 
-| Included | Excluded (in .gitignore) |
-|----------|--------------------------|
-| All source code (`src/`) | Model weights (`*.pt`, `*.bin`, `*.safetensors`) |
-| Configuration files (`configs/`) | Raw datasets (`data/raw/`) |
-| `LOOP_STATE.md` | Full experiment logs (`logs/`) |
-| `requirements.txt` | Cache directories (`__pycache__/`, `.cache/`) |
-| `REPRODUCTION_REPORT.md` (if exists) | Virtual environment (`venv/`) |
-| `PROGRESS_REPORT.md` (if exists) | Temporary files |
-
-Exception: `results/best_checkpoint/` — the best model weights **are** committed in a compressed form if under 100MB.
-
----
-
-## Execution
+Parse `$ARGUMENTS`:
+- `--message "description"` → use as commit message prefix
+- `--tag <label>` → also create a git tag (e.g., `repro/iter-6-fix-f1`)
 
 ### Step 1: Stage Files
 
 ```bash
 git add src/ configs/ LOOP_STATE.md requirements.txt
-git add REPRODUCTION_REPORT.md PROGRESS_REPORT.md 2>/dev/null || true
+git add REPRODUCTION_REPORT.md PROGRESS_REPORT.md CLAIMS_AND_GATES.md 2>/dev/null || true
+git add results/best_checkpoint/metrics.json 2>/dev/null || true
 ```
+
+Never stage: `venv/`, `data/raw/`, `*.pt`, `*.bin`, `*.safetensors`, `logs/`, `__pycache__/`.
 
 ### Step 2: Generate Commit Message
 
-Auto-generate from current `LOOP_STATE.md` state if `--message` not provided:
+If `--message` provided: use it as-is.
+
+Otherwise, auto-generate from `LOOP_STATE.md`:
 
 ```
-Iteration 6: accuracy 83.9% (+1.8%), f1 75.4% (+5.3%)
-Fix: Switched to macro-weighted F1 in metrics.py
+Iteration N: accuracy 83.9% (+1.8%), f1 75.4% (+5.3%)
+Fix: [top fix from fixes_applied[-1]]
 
 Primary metrics: accuracy 83.9%/84.7% (1.0% gap) | f1_score 75.4%/76.2% (1.0% gap)
-Status: 1/2 metrics passing | Effort: balanced | Iter: 6/10
+Status: 1/2 metrics passing | Effort: balanced | Iter: N/10
 ```
 
 ### Step 3: Commit
 
 ```bash
-git commit -m "<generated or provided message>"
+git commit -m "$MESSAGE"
 ```
 
-### Step 4: Tag (optional, with `--tag`)
+### Step 4: Tag (with `--tag`)
 
 ```bash
-git tag "repro/iter-6-fix-f1" -m "Iteration 6 checkpoint: f1 gap 8.0%→1.0%"
+git tag "repro/$LABEL" -m "Iteration N checkpoint"
 ```
 
----
+### Step 5: Update Best Checkpoint
 
-## Best Checkpoint Archive
-
-If the current results are the best so far (per `LOOP_STATE.md` iteration history):
-
+If current iteration has best metrics so far:
 ```bash
 mkdir -p results/best_checkpoint
-cp results/iter_${N}/final_checkpoint/* results/best_checkpoint/
-echo '{"iteration": 6, "accuracy": 0.839, "f1": 0.754}' > results/best_checkpoint/metrics.json
-git add results/best_checkpoint/metrics.json
+# Save metrics.json (not weights — too large for git)
+echo '{"iteration": N, "accuracy": X, "f1": Y}' > results/best_checkpoint/metrics.json
+git add results/best_checkpoint/metrics.json && git commit --amend --no-edit
 ```
-
-Only commit `metrics.json` — not the weights themselves (too large for git).
-
----
 
 ## Output
 
 ```
-Checkpoint Saved — Iteration 6
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Checkpoint Saved
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Commit:  abc1234 "Iteration 6: accuracy 83.9%..."
- Files:   12 changed, 847 insertions(+), 23 deletions(-)
- Tag:     repro/iter-6-fix-f1
-
- Best checkpoint updated: results/best_checkpoint/
-   accuracy: 83.9% (prev best: 82.1%)
-   f1_score: 75.4% (prev best: 70.1%)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-To restore this checkpoint: git checkout abc1234
-```
-
----
-
-## Recovery
-
-To restore a previous checkpoint:
-
-```bash
-git log --oneline | grep "repro/"  # list all checkpoints
-git checkout repro/iter-6-fix-f1   # restore specific checkpoint
-```
-
-To see what changed between two checkpoints:
-
-```bash
-git diff repro/iter-4 repro/iter-6
+ Files:   12 changed
+ Tag:     repro/iter-6 (if --tag used)
+ Best:    results/best_checkpoint/ updated (accuracy 82.1% → 83.9%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Restore: git checkout repro/iter-6
 ```

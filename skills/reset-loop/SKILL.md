@@ -1,110 +1,87 @@
-# /reset-loop — Reset Loop for a Fresh Run
-
-**Invocation**: `/reset-loop [--keep-history] [--keep-code] [--hard]`
-
+---
+name: reset-loop
+description: Reset the reproduction loop state for a fresh run. Multiple modes from safe (preserve code, archive state) to hard (full clean). Always creates a git commit before resetting.
+when_to_use: Use when you want to restart from scratch, after a fundamental implementation change, or to benchmark different approaches.
+argument-hint: "[--keep-history] [--keep-code] [--hard]"
+disable-model-invocation: true
+allowed-tools:
+  - Bash
+  - Read
+  - Write
 ---
 
-## Purpose
+# Reset Reproduction Loop
 
-Reset the reproduction loop state to start fresh, while preserving what you've built. Use this when:
-- You want to restart after significantly changing the implementation
-- The loop got stuck in a bad state and needs cleaning
-- You want to test a completely different approach
-- You're benchmarking: comparing different implementations from scratch
+**Arguments**: $ARGUMENTS
 
-By default, resets the loop state but keeps all code, configs, and the full iteration history (archived).
+## Current State
+!`cat LOOP_STATE.md 2>/dev/null | head -20 || echo "No LOOP_STATE.md — nothing to reset"`
 
----
+## Warning
 
-## Reset Modes
+`/reset-loop` with `--hard` is destructive. This skill **always creates a git commit first** to preserve recovery ability. If git is not initialized: report and stop unless user explicitly confirms.
 
-### Default (`/reset-loop`)
+## Instructions
 
-Safe reset — preserves everything recoverable:
-- Archive current `LOOP_STATE.md` to `archive/loop_state_YYYYMMDD_HHMMSS.md`
-- Create fresh `LOOP_STATE.md` from template (`not_started`, `iteration_count: 0`)
-- Keep all code, configs, requirements
-- Keep `logs/` and `results/` directories (just start new iter numbering)
-- Keep `REPRODUCTION_REPORT.md` / `PROGRESS_REPORT.md` if they exist
+Parse `$ARGUMENTS`:
+- `--keep-history` → copy `iteration_history` into new LOOP_STATE.md marked "pre-reset"
+- `--keep-code` → preserve `src/` and `configs/` but clear logs, results, venv
+- `--hard` → clear everything except `src/`, `configs/`, `data/raw/` (avoid re-download)
+- No flags → safe reset: archive state, fresh LOOP_STATE.md, keep everything else
 
-### Keep History (`--keep-history`)
-
-Same as default, but also copies `iteration_history` from the old `LOOP_STATE.md` into the new one, clearly marked as "pre-reset":
-
-```yaml
-iteration_history:
-  # --- Pre-reset iterations (archived run) ---
-  - iteration: "archive/1"
-    achieved: {accuracy: 0.751}
-    fixes_applied: ["initial implementation"]
-  # --- New run starts below ---
-```
-
-### Keep Code (`--keep-code`)
-
-Reset everything EXCEPT the source code:
-- Fresh `LOOP_STATE.md`
-- Clear `logs/` and `results/`
-- Clear installed packages (delete `venv/`)
-- **Keep**: `src/`, `configs/`, `requirements.txt`
-- Use when: testing if the same code reproduces from scratch
-
-### Hard Reset (`--hard`)
-
-Full reset — start from zero:
-- Fresh `LOOP_STATE.md`
-- Delete `logs/`, `results/`
-- Delete `venv/`
-- Delete `data/processed/` (keep `data/raw/` to avoid re-downloading)
-- **Keep**: documentation files, `src/`, `configs/`
-- Use when: the implementation was fundamentally wrong and needs total reimplementation
-
----
-
-## Execution
+### Step 1: Git Commit (always)
 
 ```bash
-# Always create a git commit before resetting
-git add -A && git commit -m "Pre-reset checkpoint: iter ${N}, best accuracy ${X}"
-
-# Archive current state
-mkdir -p archive/
-cp LOOP_STATE.md archive/loop_state_$(date +%Y%m%d_%H%M%S).md
-
-# Fresh LOOP_STATE.md
-cp templates/LOOP_STATE.md LOOP_STATE.md  # from fxxk-coming-soon templates
-
-# [--keep-code / --hard only] remove dirs
-rm -rf logs/ results/ venv/   # --hard
+git add -A
+git commit -m "Pre-reset checkpoint: iter ${N}, best ${METRIC}=${VALUE}"
 ```
 
----
+If commit fails (nothing staged): still proceed, just warn that recovery requires prior commits.
+
+### Step 2: Archive Current State
+
+```bash
+mkdir -p archive/
+cp LOOP_STATE.md archive/loop_state_$(date +%Y%m%d_%H%M%S).md
+cp REPRODUCTION_REPORT.md archive/ 2>/dev/null || true
+cp PROGRESS_REPORT.md archive/ 2>/dev/null || true
+```
+
+### Step 3: Apply Reset Mode
+
+**Default (safe)**:
+- Create fresh `LOOP_STATE.md` from template
+- Inherit `effort:` and `max_iterations:` from previous run
+- Keep `src/`, `configs/`, `logs/`, `results/`, `data/`
+
+**`--keep-history`**: Same as default, plus copy old `iteration_history` into new file under `# Pre-reset history` section.
+
+**`--keep-code`**: Default + also clear `logs/`, `results/iter_*/` (keep `results/best_checkpoint/`), delete `venv/`.
+
+**`--hard`**: `--keep-code` + also delete `data/processed/`. Print: "Hard reset complete. Keep data/raw/ to avoid re-downloading."
+
+### Step 4: Initialize Fresh State
+
+Fresh `LOOP_STATE.md` inherits:
+- `effort:` from archived state (continuity)
+- `max_iterations:` from archived state
+- Everything else reset to defaults (`iteration_count: 0`, `status: not_started`)
 
 ## Output
 
 ```
 Loop Reset Complete
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Mode:     default (safe)
  Archived: archive/loop_state_20240115_143022.md
-   Previous run: 10 iterations | best accuracy 83.9%
+ Previous: 10 iterations | best accuracy 83.9%
+ Pre-reset commit: git abc1234
 
  Fresh LOOP_STATE.md:
-   iteration_count: 0
-   status: not_started
-   effort: balanced (inherited from previous run)
+   iteration_count: 0 | status: not_started
+   effort: balanced (inherited)
 
- Kept:
-   ✓ src/   ✓ configs/   ✓ requirements.txt
-   ✓ logs/  ✓ results/   ✓ REPRODUCTION_REPORT.md
-
- Pre-reset checkpoint committed: git abc1234
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Kept: src/ configs/ logs/ results/ data/
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Ready. Run /reproduce to start fresh.
 ```
-
----
-
-## Warning
-
-`/reset-loop --hard` is destructive. It always creates a git commit first, but if git is not initialized or the commit fails, it will prompt for confirmation before proceeding.

@@ -1,49 +1,47 @@
-# /extend-loop — Add Iterations to an Exhausted Loop
-
-**Invocation**: `/extend-loop [--add-iterations N] [--effort balanced|max|beast] [--tighten-tolerance]`
-
+---
+name: extend-loop
+description: Add more iterations to a reproduction loop that has timed out (status=timeout). Resumes from current state with all history and metrics preserved. Does not reset any prior work.
+when_to_use: Use when the loop has timed out but metrics are close to target (gap < 2× tolerance), or when you want to give the loop more attempts after analyzing the outstanding issues.
+argument-hint: "[--add-iterations N] [--effort balanced|max|beast] [--tighten-tolerance]"
+allowed-tools:
+  - Read
+  - Write
+  - Bash
 ---
 
-## Purpose
+# Extend Reproduction Loop
 
-When the loop reaches `max_iterations` without full success (status: `timeout`), this skill extends the budget and resumes from where it stopped. All history is preserved — the loop continues from the last iteration's state.
+**Arguments**: $ARGUMENTS
 
-Use this instead of `/reset-loop` when you want to give the loop more attempts without discarding any prior work.
+## Current State
+!`cat LOOP_STATE.md 2>/dev/null || echo "No LOOP_STATE.md found"`
 
----
+## Instructions
 
-## When to Use
-
-```
-Status: TIMEOUT (reached 10/10 iterations)
-Best: accuracy 83.9% (gap 1.0%), f1_score 75.4% (gap 1.0%)
-Both metrics are CLOSE — just need 2-3 more iterations to converge
-→ /extend-loop --add-iterations 5
-```
-
-vs.
-
-```
-Status: TIMEOUT (reached 10/10 iterations)
-Best: accuracy 75.1% (gap 11.3%) — barely moved in last 3 iterations
-Implementation may be fundamentally wrong
-→ /reset-loop or /debug-gap --depth deep first
-```
-
----
-
-## Execution
+Parse `$ARGUMENTS`:
+- `--add-iterations N` → add N to `max_iterations` (default: 5)
+- `--effort <level>` → upgrade effort level for extended run
+- `--tighten-tolerance` → halve the current tolerance (e.g., 10% → 5%)
 
 ### Step 1: Validate State
 
 Read `LOOP_STATE.md`:
-- If `status != "timeout"`: warn that extending a non-exhausted loop is unusual, ask to confirm
-- If `iteration_count < max_iterations`: inform that the loop isn't exhausted yet — run `/reproduce` instead
-- If `status == "success"`: inform that reproduction already succeeded, suggest `--effort beast` for higher fidelity
+- If `status == "success"` → report "Already successful. To run at higher fidelity, use `/reproduce --effort max`"
+- If `status != "timeout"` → warn "Loop has not timed out yet. Run `/reproduce` to continue"
+- If `status == "blocked"` → report "Loop is blocked. Fix the blocking error first, then run `/reproduce`"
+- If `status == "timeout"` → proceed
 
-### Step 2: Update Control Parameters
+### Step 2: Assess Whether to Extend
 
-Apply the new budget to `LOOP_STATE.md`:
+Check if extension is likely to help:
+- If ALL metrics have `gap < 2 × tolerance`: likely to converge — EXTEND
+- If any metric has `gap > 5 × tolerance` AND showed < 1% improvement in last 3 iters: plateau warning
+  - Recommend `/debug-gap --depth deep` first, then extend
+  - Still extend if user explicitly invoked this skill
+
+### Step 3: Update Control Parameters
+
+In `LOOP_STATE.md`:
 
 ```yaml
 # Before
@@ -52,59 +50,32 @@ max_iterations: 10
 status: timeout
 
 # After /extend-loop --add-iterations 5
-iteration_count: 10      # preserved — counting continues
+iteration_count: 10      # preserved (counting continues)
 max_iterations: 15       # extended
 status: running          # reset to running
 ```
 
-If `--effort max` or `--effort beast`: also update `tolerance` per `skills/shared/effort-contract.md`.
+Apply `--effort` changes if specified (per effort-contract.md).
+Apply `--tighten-tolerance`: multiply `tolerance` by 0.5.
 
-If `--tighten-tolerance`: reduce tolerance by 50% (e.g., 10% → 5%) to aim for closer match.
+### Step 4: Report and Resume
 
-### Step 3: Resume Loop
-
-Continue from the current `outstanding_issues` in `LOOP_STATE.md`. The next iteration will be iteration N+1 where N is the last completed iteration.
-
-Print what will happen next:
-
-```
-Resuming from iteration 10/10 → will run up to iteration 15
-
-Top outstanding issue for next iteration:
-  [HIGH] f1_score 1.0% gap — try tightening class weight schedule
-  Proposed fix: Use label smoothing 0.1 per paper footnote 3
-
-Run /reproduce to start the extended loop.
-```
-
-Then automatically invoke the reproduce loop.
-
----
-
-## Flags
-
-| Flag | Default | Effect |
-|------|---------|--------|
-| `--add-iterations N` | 5 | Add N to current max_iterations |
-| `--effort level` | inherit | Change effort level for extended run |
-| `--tighten-tolerance` | false | Halve the current tolerance threshold |
-
----
-
-## Output
+Print what will happen next, then invoke the reproduction loop:
 
 ```
 Loop Extended
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Previous budget:  10 iterations (exhausted)
- Extended budget:  15 iterations (+5)
- Tolerance:        10% → 10% (unchanged)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Budget: 10 → 15 iterations (+5)
+ Tolerance: 10% (unchanged)
+ Status: running (was: timeout)
 
  Resuming from iteration 10:
-   accuracy:  83.9% / 84.7%  gap: 1.0%  ● CLOSE
-   f1_score:  75.4% / 76.2%  gap: 1.0%  ● CLOSE
+   accuracy  83.9% / 84.7%  gap: 1.0%  ● CLOSE
+   f1_score  75.4% / 76.2%  gap: 1.0%  ● CLOSE
 
- Next fix: [top outstanding_issue description]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Top issue: f1_score — try label smoothing 0.1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Starting iteration 11...
 ```
+
+Then continue the loop from PHASE 1 of the next iteration per `AGENT_LOOP_PROMPT.md`.
