@@ -383,7 +383,7 @@ fixes_applied:
 
 ## Skill Reference
 
-All available as slash commands in `.claude/commands/`:
+All available as slash commands in `.claude/skills/`:
 
 ### Loop Control
 ```
@@ -431,10 +431,16 @@ All available as slash commands in `.claude/commands/`:
 
 /check-impl [--section all|structure|plan|eval] [--strict]
     Audit implementation against all paper documentation files
+
+/check-plateau [--metric name] [--window N] [--threshold 0.01]
+    Detect stagnation and classify plateau type (A/B/C/D)
 ```
 
-### Paper Analysis (Pre-Stage 1)
+### Review & Paper Analysis
 ```
+/handoff-review [--reviewer human|codex|gpt] [--receive]
+    Prepare external review package; parse reviewer verdict into LOOP_STATE.md
+
 /paper-parse [--file path] [--focus metrics|arch|data|hyper|all]
     Extract key implementation info from the paper before generating docs
 ```

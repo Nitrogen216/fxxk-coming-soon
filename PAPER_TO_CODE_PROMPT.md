@@ -231,15 +231,19 @@ Generate **five** interconnected Markdown files that form a complete implementat
 
 ## Agent Loop Integration
 
-**AUTONOMOUS REPRODUCTION LOOP**: The generated documentation is designed to power a continuous implementation-evaluation loop. After generating the four files, copy `AGENT_LOOP_PROMPT.md` and `LOOP_STATE.md` (from fxxk-coming-soon templates) into your project. The loop agent will:
+**AUTONOMOUS REPRODUCTION LOOP**: The generated documentation is designed to power a continuous implementation-evaluation loop. After generating the five files, copy `AGENT_LOOP_PROMPT.md` and `LOOP_STATE.md` (from fxxk-coming-soon templates) into your project. The loop agent will:
 
-1. Implement the codebase following `IMPLEMENTATION_PLAN.md`
-2. Run experiments and evaluate against `Paper Target Metrics` in `DATA_AND_EVAL.md`
-3. Diagnose gaps using `RISKS_AND_NOTES.md` as a reference
-4. Apply fixes and iterate until all primary metrics pass within tolerance
-5. Write a `REPRODUCTION_REPORT.md` on success
+1. Load milestone gates from `CLAIMS_AND_GATES.md` (M0 sanity → M1 baseline → M2 method)
+2. Implement the codebase following `IMPLEMENTATION_PLAN.md`
+3. Run experiments and evaluate against `Paper Target Metrics` in `DATA_AND_EVAL.md`
+4. Diagnose gaps using `RISKS_AND_NOTES.md` assumption ladder as a reference
+5. Apply fixes and iterate — baseline first (M1), then proposed method (M2)
+6. Write a `REPRODUCTION_REPORT.md` on success
 
-**KEY REQUIREMENT**: The `Paper Target Metrics` YAML block in `DATA_AND_EVAL.md` is **mandatory** — the loop agent cannot function without machine-readable targets. Every main result table from the paper must appear there with exact values.
+**KEY REQUIREMENTS**:
+- The `Paper Target Metrics` YAML block in `DATA_AND_EVAL.md` is **mandatory** — the loop cannot determine success criteria without it
+- `CLAIMS_AND_GATES.md` is **mandatory** — the loop enforces M1 before M2 using its milestone gate definitions
+- Every main result table from the paper must appear in `Paper Target Metrics` with exact values
 
 
 
@@ -327,9 +331,10 @@ Generate **five** interconnected Markdown files that form a complete implementat
 
 **STRUCTURE REQUIREMENTS**:
 1. **PROJECT_STRUCTURE.md**: Complete architectural blueprint with exact specifications
-2. **IMPLEMENTATION_PLAN.md**: Sequential development roadmap with specific tasks
-3. **DATA_AND_EVAL.md**: Comprehensive data handling and evaluation protocols
-4. **RISKS_AND_NOTES.md**: Proactive guidance for implementation challenges
+2. **IMPLEMENTATION_PLAN.md**: Sequential development roadmap with baseline-first phases
+3. **DATA_AND_EVAL.md**: Comprehensive data handling, evaluation protocols, and `Paper Target Metrics` YAML
+4. **RISKS_AND_NOTES.md**: Proactive guidance for implementation challenges and assumption ladder
+5. **CLAIMS_AND_GATES.md**: Paper claims frozen + M0-M4 milestone gate definitions
 
 **QUALITY STANDARDS**:
 - **Completeness**: Every aspect needed for reproduction must be covered
@@ -347,11 +352,11 @@ Generate **five** interconnected Markdown files that form a complete implementat
 ✅ Error handling and debugging guidance
 ✅ Performance expectations and benchmarks
 
-**SUCCESS CRITERION**: The autonomous loop agent using only these four files plus `AGENT_LOOP_PROMPT.md` should be able to reproduce the paper's main results without human intervention. All primary metrics in `Paper Target Metrics` should be achieved within 10% tolerance (balanced effort) in ≤10 iterations.
+**SUCCESS CRITERION**: The autonomous loop agent using only these five files plus `AGENT_LOOP_PROMPT.md` and `LOOP_STATE.md` should be able to reproduce the paper's main results without human intervention. All primary metrics in `Paper Target Metrics` should be achieved within 10% tolerance (balanced effort) in ≤10 iterations.
 
 ---
 
-**Begin generating the four files now, ensuring each one meets these comprehensive standards for autonomous Claude Code implementation.**
+**Begin generating all five files now, ensuring each one meets these comprehensive standards for autonomous Claude Code implementation.**
 
 
 
