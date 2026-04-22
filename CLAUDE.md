@@ -12,7 +12,7 @@ This file provides guidance to Claude Code when working with the **fxxk-coming-s
 
 2. **Stage 2 — Autonomous Reproduction Loop**: `AGENT_LOOP_PROMPT.md` is a master loop controller that directs Claude Code to run a continuous implement→execute→evaluate→improve loop until paper metrics are reproduced.
 
-The repository also provides 15 composable skills (in `skills/`) and templates (in `templates/`) for use in target paper reproduction projects.
+The repository also provides 16 composable skills (in `skills/`) and templates (in `templates/`) for use in target paper reproduction projects.
 
 ---
 
@@ -23,7 +23,8 @@ fxxk-coming-soon/
 ├── PAPER_TO_CODE_PROMPT.md    # Stage 1: LLM prompt → 5 doc files
 ├── AGENT_LOOP_PROMPT.md       # Stage 2: master loop controller
 │
-├── skills/                    # Claude Code slash commands (15 total)
+├── skills/                    # Claude Code slash commands (16 total)
+│   ├── init-project/SKILL.md      # /init-project — first-run setup, baseline sync
 │   ├── reproduce/SKILL.md         # /reproduce — full loop (context:fork)
 │   ├── loop-once/SKILL.md         # /loop-once — single iteration
 │   ├── extend-loop/SKILL.md       # /extend-loop — add iterations to timed-out loop

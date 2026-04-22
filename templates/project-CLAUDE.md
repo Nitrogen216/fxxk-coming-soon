@@ -37,6 +37,12 @@ This is an autonomous paper reproduction project managed by the **fxxk-coming-so
 /paper-parse --file paper.pdf --focus metrics
 ```
 
+### Initialize the project (required first step)
+```
+/init-project
+```
+Verifies the 5 Stage-1 doc files exist, creates `LOOP_STATE.md`, and syncs M1 `baseline_targets` from `CLAIMS_AND_GATES.md`. Run once before anything else.
+
 ### Set up environment and download datasets
 ```
 /setup-env
@@ -143,14 +149,15 @@ The loop enforces M1 before M2 — no iterations are wasted on method improvemen
 
 Watch `LOOP_STATE.md` — Claude Code updates it after every iteration.
 
-Key fields to check:
-- `status` — `running` / `success` / `timeout` / `blocked`
-- `current_milestone` — `M0` / `M1` / `M2` / `M3` / `M4`
-- `iteration_count` — how many iterations completed
+Key fields to check (all in YAML blocks):
+- `status.state` — `running` / `success` / `timeout` / `blocked`
+- `status.iteration_count` — how many iterations completed
+- `status.total_gpu_hours_consumed` — cumulative GPU hours used
+- `milestones.current` — `M0` / `M1` / `M2` / `M3` / `M4`
 - `latest_metrics` — current numbers vs paper targets
-- `outstanding_issues` — what Claude Code plans to fix next
-- `plateau_detected` — whether stagnation has been detected
-- `plateau_type` — `A` (asymptotic) / `B` (oscillating) / `C` (ceiling) / `D` (random)
+- `outstanding_issues` — what Claude Code plans to fix next (top item drives next iteration)
+- `plateau.detected` — whether stagnation has been detected
+- `plateau.type` — `A` (asymptotic) / `B` (oscillating) / `C` (ceiling) / `D` (random)
 
 ---
 
@@ -166,12 +173,17 @@ Edit `LOOP_STATE.md → Loop Control` to change:
 
 ## Skills Reference
 
-All 15 skills are available via `.claude/skills/`. Install with:
+All 16 skills are available via `.claude/skills/`. Install with:
 
 ```bash
 mkdir -p .claude/skills
 cp -r /path/to/fxxk-coming-soon/skills/* .claude/skills/
 ```
+
+### Project Setup
+| Command | Purpose |
+|---------|---------|
+| `/init-project [--force-reset-state]` | Verify doc files, create LOOP_STATE.md, sync baseline_targets |
 
 ### Loop Control
 | Command | Purpose |

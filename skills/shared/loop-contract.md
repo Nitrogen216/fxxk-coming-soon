@@ -11,9 +11,10 @@ All loop-aware skills must honor these invariants. They are non-negotiable.
 
 ## Iteration Counting
 
-- Increment `iteration_count` at the **START** of each iteration, before doing work
-- This ensures max_iterations is respected even if the agent crashes mid-iteration
-- Never decrement iteration_count, even if an iteration was unproductive
+- Increment `status.iteration_count` at the **START** of each iteration, before doing work
+- This ensures `loop_control.max_iterations` is respected even if the agent crashes mid-iteration
+- Never decrement `status.iteration_count`, even if an iteration was unproductive
+- Track `status.total_gpu_hours_consumed` cumulatively; halt when it exceeds `loop_control.total_gpu_hour_budget`
 
 ## Milestone Progression (enforced order)
 
@@ -27,20 +28,21 @@ M0 (sanity) → M1 (baseline) → M2 (method) → M3 (ablation) → M4 (review)
 
 ## Stopping Conditions (checked in this priority order)
 
-1. `status == "success"` — M2 (and M3 if effort≥max) gates passed → STOP, report success
-2. `iteration_count >= max_iterations` — budget exhausted → STOP, report timeout, suggest /extend-loop
-3. `status == "blocked"` — unrecoverable error → STOP, report blocking issue
-4. User interruption → STOP, update state with `status = "interrupted"`
+1. `status.state == "success"` — M2 (and M3 if effort≥max) gates passed → STOP, report success
+2. `status.iteration_count >= loop_control.max_iterations` — iteration budget exhausted → STOP, report timeout, suggest /extend-loop
+3. `status.total_gpu_hours_consumed >= loop_control.total_gpu_hour_budget` — GPU budget exhausted → STOP, report timeout
+4. `status.state == "blocked"` — unrecoverable error → STOP, report blocking issue
+5. User interruption → STOP, update state with `status.state = "interrupted"`
 
 No other conditions justify stopping the loop.
 
 ## Plateau Rules
 
-When `plateau_detected == true`:
+When `plateau.detected == true`:
 - Do NOT apply the same type of fix that was applied in the last plateau-stalled iteration
-- Escalate to the plateau-type-specific strategy (see loop-contract for types A/B/C/D)
-- Record `plateau_escalation_applied` in LOOP_STATE.md
-- After 2 plateau escalations with no improvement → set `status = "blocked"` with a clear message
+- Escalate to the plateau-type-specific strategy (see AGENT_LOOP_PROMPT.md PHASE 3.5 for types A/B/C/D)
+- Append the strategy name to `plateau.escalations_applied` (list) in LOOP_STATE.md
+- After 2 entries in `plateau.escalations_applied` with no improvement → set `status.state = "blocked"` with a clear message
 
 ## Fix Strategy
 

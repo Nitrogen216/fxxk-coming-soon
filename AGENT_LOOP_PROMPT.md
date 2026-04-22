@@ -50,16 +50,18 @@ gpu_hour_limit: 4       # max GPU-hours per iteration before flagging
 
 Run once per session, before entering the loop:
 
-1. Read `LOOP_STATE.md` — if it doesn't exist, create it from the template
+1. Verify `LOOP_STATE.md` exists. If missing: run `/init-project` first, then stop and ask the user to re-run. Do NOT manually create `LOOP_STATE.md` here.
 2. Read `DATA_AND_EVAL.md` → **`## Paper Target Metrics`** — load all targets
-3. Read `CLAIMS_AND_GATES.md` → load milestone gate definitions (M0–M4)
+3. Read `CLAIMS_AND_GATES.md` → load milestone gate definitions (M0–M4) and `baseline_metrics` YAML
    - If missing: synthesize M0 (dry-run), M1 (baseline metrics), M2 (primary metrics) from DATA_AND_EVAL.md
-4. Determine current milestone from `LOOP_STATE.md → current_milestone`
-5. Check stopping conditions:
-   - `status == "success"` → print results table and stop
-   - `iteration_count >= max_iterations` → write PROGRESS_REPORT.md and stop
-   - `status == "blocked"` → print blocking issue and stop
-6. Otherwise: enter the loop at PHASE 0 (if `iteration_count == 0`) or PHASE 1
+4. **Sync baseline_targets** (idempotent): compare `CLAIMS_AND_GATES.md → baseline_metrics` to `LOOP_STATE.md → milestones.M1_baseline.baseline_targets`. If LOOP_STATE has empty `{}` but CLAIMS has real values, populate LOOP_STATE. If they disagree, CLAIMS wins (it is the authoritative source).
+5. Determine current milestone from `LOOP_STATE.md → milestones.current`
+6. Check stopping conditions:
+   - `status.state == "success"` → print results table and stop
+   - `status.iteration_count >= loop_control.max_iterations` → write PROGRESS_REPORT.md and stop
+   - `status.state == "blocked"` → print blocking issue and stop
+   - `status.total_gpu_hours_consumed >= loop_control.total_gpu_hour_budget` → write PROGRESS_REPORT.md and stop
+7. Otherwise: enter the loop at PHASE 0 (if `iteration_count == 0`) or PHASE 1
 
 ---
 
@@ -84,7 +86,7 @@ Steps:
 4. Verify dataset integrity (file sizes, record counts)
 5. Set random seeds everywhere: Python `random`, `numpy`, `torch` (see `DATA_AND_EVAL.md`)
 6. Run a smoke test: import all modules, instantiate core classes
-7. Update `LOOP_STATE.md`: `status = "running"`, `iteration_count = 1`
+7. Update `LOOP_STATE.md`: `status.state = "running"`, `status.iteration_count = 1`; also increment `status.total_gpu_hours_consumed` after each training run
 
 **On environment failure**: log error details to `LOOP_STATE.md` under `blocking_error`, set `status = "blocked"`, stop.
 
@@ -102,7 +104,7 @@ Steps:
 
 **Milestone-aware implementation** (`iteration_count > 1`):
 
-Before choosing what to implement, check `LOOP_STATE.md → current_milestone`:
+Before choosing what to implement, check `LOOP_STATE.md → milestones.current`:
 - **M0 → M1 (baseline)**: Implement and evaluate the baseline first. Do NOT touch the proposed method code yet. The baseline must pass before method reproduction begins.
 - **M1 → M2 (method)**: Baseline is confirmed. Now implement the proposed method's key components.
 - **M2 → M3 (ablation)**: Only when `effort >= max`. Implement ablation variants.
@@ -166,12 +168,13 @@ After every evaluation, check stagnation on the worst-failing metric:
 
 ```
 If the metric improved < 1% (abs) for the last 3 consecutive iterations:
-  → Set plateau_detected: true in LOOP_STATE.md
-  → Classify plateau type:
+  → Set plateau.detected: true in LOOP_STATE.md (and plateau.metric, plateau.since_iteration)
+  → Classify plateau type and record in plateau.type:
       A: monotone but slowing  → reduce LR by 10×
       B: oscillating           → reduce LR + gradient clipping
       C: hard ceiling          → /debug-gap --depth deep, re-examine metric formula
       D: random walk           → fix all random seeds, reduce data stochasticity
+  → Append strategy name to plateau.escalations_applied (list)
   → Apply type-specific escalation INSTEAD OF the usual top-priority fix
 ```
 
@@ -191,22 +194,22 @@ If plateau detected AND used ≥ 70% of iteration budget: proactively write `PRO
 
 **Case A: Current milestone gate passes** → `ADVANCE MILESTONE`
 
-Update `LOOP_STATE.md → current_milestone`. If M2 passes → SUCCESS.
+Update `LOOP_STATE.md → milestones.current`. Record `passed_at_iteration` on the milestone that just passed. If M2 passes → SUCCESS.
 
 **Case B: M2 metric ALL pass** → `SUCCESS`
 
 ```
 1. Write REPRODUCTION_REPORT.md
-2. Update LOOP_STATE.md: status = "success", current_milestone: "M2"
+2. Update LOOP_STATE.md: status.state = "success", milestones.current = "M2"
 3. If effort >= max: check M3 ablations before stopping
 4. Print success summary and stop
 ```
 
-**Case C: `iteration_count >= max_iterations`** → `TIMEOUT`
+**Case C: `status.iteration_count >= loop_control.max_iterations`** OR `status.total_gpu_hours_consumed >= loop_control.total_gpu_hour_budget` → `TIMEOUT`
 
 ```
 1. Write PROGRESS_REPORT.md: best milestone reached, remaining gaps
-2. Update LOOP_STATE.md: status = "timeout"
+2. Update LOOP_STATE.md: status.state = "timeout"
 3. Print: "Best milestone: M[N]. Best metrics: [table]. Remaining gaps: [list]"
 4. Suggest: /extend-loop --add-iterations 5  OR  /check-plateau
 5. Stop the loop
@@ -272,75 +275,89 @@ Generate ordered hypothesis list. Update `outstanding_issues`. Increment `iterat
 
 ## LOOP_STATE.md Schema
 
+**Format policy**: every data section in `LOOP_STATE.md` is a YAML block inside a fenced ```` ```yaml ```` code block. Do NOT use Markdown tables — skills parse YAML. Top-level keys:
+
+- `loop_control` — human-editable runtime knobs
+- `status` — run state, iteration count, cumulative GPU hours
+- `milestones` — M0-M4 progression
+- `latest_metrics` — per-metric comparison against paper targets
+- `plateau` — stagnation detection state
+- `iteration_history` — list, append-only
+- `outstanding_issues` — priority-ordered list, top item drives next iteration
+- `fixes_applied` — list, append-only audit trail
+
+Example (abbreviated):
+
 ```yaml
-# ── Control ───────────────────────────────────────
-effort: balanced            # lite | balanced | max | beast
-max_iterations: 10
-tolerance: 0.10
-reviewer: none
-gpu_hour_limit: 4
+loop_control:
+  effort: balanced          # lite | balanced | max | beast
+  max_iterations: 10
+  tolerance: 0.10
+  reviewer: none
+  gpu_hour_limit: 4
+  total_gpu_hour_budget: 40
 
-# ── Current Status ────────────────────────────────
-iteration_count: 3
-status: running             # not_started | running | success | timeout | blocked | interrupted
-blocking_error: null
-last_updated: "2024-01-15T14:23:00Z"
+status:
+  state: running            # not_started | running | success | timeout | blocked | interrupted
+  iteration_count: 3
+  total_gpu_hours_consumed: 2.4
+  blocking_error: null
+  last_updated: "2024-01-15T14:23:00Z"
 
-# ── Milestone Progress ────────────────────────────
-current_milestone: M2       # M0 | M1 | M2 | M3 | M4
 milestones:
-  M0_sanity:
-    status: passed
-    passed_at_iteration: 0
+  current: M2               # M0 | M1 | M2 | M3 | M4
+  M0_sanity: {status: passed, passed_at_iteration: 0}
   M1_baseline:
     status: passed
     passed_at_iteration: 2
-    baseline_targets: {accuracy: 0.762, f1_score: 0.701}
-  M2_method:
-    status: pending
-    passed_at_iteration: null
-  M3_ablation:
-    status: pending         # only checked if effort >= max
+    baseline_targets: {accuracy: 0.762, f1_score: 0.701}  # synced from CLAIMS_AND_GATES.md
+  M2_method: {status: pending, passed_at_iteration: null}
+  M3_ablation: {status: pending, passed_at_iteration: null}
   M4_review:
-    status: pending         # only checked if effort == beast or reviewer != none
+    status: pending
     reviewer_score: null
     reviewer_verdict: null  # ready | almost | not_ready
     reviewer_blockers: []
 
-# ── Latest Metrics ────────────────────────────────
 latest_metrics:
   accuracy:
     target: 0.847
     achieved: 0.821
-    gap: "3.1%"
-    status: fail
+    gap: 0.031
+    gap_pct: "3.1%"
+    status: fail            # pass | fail
+    measured_at_iteration: 3
   f1_score:
     target: 0.762
     achieved: 0.701
-    gap: "8.0%"
+    gap: 0.080
+    gap_pct: "8.0%"
     status: fail
+    measured_at_iteration: 3
 
-# ── Plateau Detection ─────────────────────────────
-plateau_detected: false
-plateau_metric: null
-plateau_type: null          # A: asymptotic | B: oscillating | C: ceiling | D: random
-plateau_since_iteration: null
-plateau_escalation_applied: null
+plateau:
+  detected: false
+  metric: null
+  type: null                # A: asymptotic | B: oscillating | C: ceiling | D: random
+  since_iteration: null
+  escalations_applied: []
 
-# ── Iteration History ─────────────────────────────
 iteration_history:
   - iteration: 1
     milestone: M1
     achieved: {accuracy: 0.751}
     issues_found: ["data normalization computed globally, not per-channel"]
     fixes_applied: ["fixed mean/std to per-channel in data/preprocessing.py"]
+    gpu_hours: 0.8
+    log_path: "logs/iter_1.log"
   - iteration: 2
     milestone: M1
     achieved: {accuracy: 0.803}
     issues_found: ["learning rate too high, loss oscillating"]
     fixes_applied: ["reduced lr 1e-3→3e-4, added 100-step linear warmup"]
+    gpu_hours: 0.9
+    log_path: "logs/iter_2.log"
 
-# ── Outstanding Issues (priority-ordered) ─────────
 outstanding_issues:
   - priority: high
     metric: f1_score
@@ -349,24 +366,13 @@ outstanding_issues:
     hypothesis: "Paper uses macro-F1; code uses micro"
     proposed_fix: "Change average='micro' to average='macro' in metrics.py:compute_f1"
     file_hint: "src/eval/metrics.py:42"
-  - priority: medium
-    metric: accuracy
-    milestone: M2
-    gap: "3.1%"
-    hypothesis: "Weight init differs from paper (Xavier vs Kaiming)"
-    proposed_fix: "Switch to nn.init.xavier_uniform_ per paper Section 3.2"
-    file_hint: "src/models/model.py:_init_weights"
+    added_at_iteration: 3
 
-# ── Applied Fixes Log ─────────────────────────────
 fixes_applied:
   - iteration: 1
     description: "Fixed per-channel data normalization"
     files_changed: ["src/data/preprocessing.py"]
     result: "accuracy 0.751 → 0.803 (+7.0%)"
-  - iteration: 2
-    description: "Reduced LR with warmup schedule"
-    files_changed: ["configs/paper_config.yaml", "src/training/trainer.py"]
-    result: "accuracy 0.803 → 0.821 (+2.2%)"
 ```
 
 ---

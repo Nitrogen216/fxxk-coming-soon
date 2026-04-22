@@ -30,7 +30,7 @@ Verify these files exist before starting. Stop and report if any are missing:
 - `CLAIMS_AND_GATES.md` (milestone gates M0-M4 + assumption ladder)
 - `AGENT_LOOP_PROMPT.md`
 
-If `LOOP_STATE.md` is missing, initialize it from the template: the user should have copied `templates/LOOP_STATE.md` from fxxk-coming-soon to the project root. Create a minimal one if not present.
+If `LOOP_STATE.md` is missing: stop immediately and tell the user to run `/init-project` first. Do NOT attempt to create `LOOP_STATE.md` here — that is `/init-project`'s job, which also syncs `baseline_targets` from `CLAIMS_AND_GATES.md`.
 
 ## Argument Parsing
 
@@ -42,11 +42,11 @@ Effort defaults if not specified: inherit from `LOOP_STATE.md`, else `balanced`.
 
 ## State Check
 
-Read `LOOP_STATE.md`:
-- `status == "success"` → print results table, offer to continue at higher effort
-- `status == "timeout"` → print best results, suggest `/extend-loop --add-iterations 5`
-- `status == "blocked"` → print blocking error, suggest manual fix + `/reproduce`
-- Otherwise → continue from `iteration_count`
+Read `LOOP_STATE.md` (all fields are nested under YAML keys):
+- `status.state == "success"` → print results table, offer to continue at higher effort
+- `status.state == "timeout"` → print best results, suggest `/extend-loop --add-iterations 5`
+- `status.state == "blocked"` → print blocking error, suggest manual fix + `/reproduce`
+- Otherwise → continue from `status.iteration_count`, tracking `status.total_gpu_hours_consumed`
 
 ## Execution
 

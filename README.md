@@ -23,6 +23,9 @@ fxxk-coming-soon/
 │
 ├── skills/                    # Claude Code slash commands (copy to target project)
 │   │
+│   │   # Project Setup
+│   ├── init-project/SKILL.md      # /init-project — verify docs, create LOOP_STATE, sync baselines
+│   │
 │   │   # Loop Control
 │   ├── reproduce/SKILL.md         # /reproduce — start the full loop
 │   ├── loop-once/SKILL.md         # /loop-once — single iteration, manual control
@@ -94,9 +97,11 @@ cp /path/to/fxxk-coming-soon/templates/project-CLAUDE.md ./CLAUDE.md
 mkdir -p .claude/skills
 cp -r /path/to/fxxk-coming-soon/skills/* .claude/skills/
 
-# Launch Claude Code and start the loop
+# Launch Claude Code, initialize, and start the loop
 claude
-> /reproduce
+> /init-project    # verifies files, creates LOOP_STATE.md, syncs baseline_targets
+> /setup-env       # installs deps and downloads data
+> /reproduce       # runs the autonomous loop
 ```
 
 Claude Code will run autonomously:
@@ -202,6 +207,12 @@ All loop skills respect `--effort`:
 ---
 
 ## Available Skills
+
+### Project Setup
+
+| Command | Description | Notes |
+|---------|-------------|-------|
+| `/init-project [--force-reset-state] [--skip-baseline-sync]` | Verify the 5 Stage-1 doc files, create `LOOP_STATE.md`, auto-sync M1 `baseline_targets` from `CLAIMS_AND_GATES.md` | **Run this first** — before `/setup-env` or `/reproduce` |
 
 ### Loop Control
 
