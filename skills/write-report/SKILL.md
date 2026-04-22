@@ -25,9 +25,9 @@ Parse `$ARGUMENTS`:
 - `--type success|progress|failed` → override auto-detected type
 - `--compare-table` → add side-by-side comparison with paper's full results table
 
-**Auto-detect type** from `LOOP_STATE.md → status`:
+**Auto-detect type** from `LOOP_STATE.md → status.state`:
 - `success` → REPRODUCTION_REPORT.md
-- `timeout` or no status → PROGRESS_REPORT.md
+- `timeout` or `not_started` → PROGRESS_REPORT.md
 - `blocked` → FAILURE_REPORT.md
 
 Archive any existing report to `reports/` before writing new one.

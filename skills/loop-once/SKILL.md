@@ -41,13 +41,14 @@ Parse `$ARGUMENTS`:
 **Full iteration** (default, no --phase flag):
 
 1. **Check stopping conditions** (per loop-contract.md):
-   - If `status == "success"` → announce and stop
-   - If `iteration_count >= max_iterations` → announce timeout, suggest `/extend-loop`
+   - If `status.state == "success"` → announce and stop
+   - If `status.iteration_count >= loop_control.max_iterations` → announce timeout, suggest `/extend-loop`
+   - If `status.total_gpu_hours_consumed >= loop_control.total_gpu_hour_budget` → announce budget exhausted, stop
 
-2. **Increment** `iteration_count` in `LOOP_STATE.md` BEFORE doing any work
+2. **Increment** `status.iteration_count` in `LOOP_STATE.md` BEFORE doing any work
 
 3. **IMPLEMENT**: apply top fix from `outstanding_issues`
-   - If `iteration_count == 1` and no code exists: full implementation per `IMPLEMENTATION_PLAN.md`
+   - If `status.iteration_count == 1` and no code exists: full implementation per `IMPLEMENTATION_PLAN.md`
    - If `--focus <metric>`: only fix issues tied to that metric
    - Document each change immediately in `fixes_applied`
 

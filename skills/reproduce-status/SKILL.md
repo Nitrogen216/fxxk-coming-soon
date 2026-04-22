@@ -2,6 +2,7 @@
 name: reproduce-status
 description: Print a compact status snapshot of the current reproduction project. Reads LOOP_STATE.md and shows iteration count, milestone progress, metric gaps, and suggested next action. No experiments are run.
 when_to_use: Use at the start of any session to orient yourself, or to quickly check progress mid-loop.
+argument-hint: "[--verbose]"
 allowed-tools:
   - Read
   - Bash
@@ -17,7 +18,7 @@ allowed-tools:
 
 ## Instructions
 
-Read `LOOP_STATE.md` and print a compact status table. If `LOOP_STATE.md` is missing, report "Not started — run /setup-env then /reproduce".
+Read `LOOP_STATE.md` and print a compact status table. If `LOOP_STATE.md` is missing, report "Not initialized — run /init-project first, then /setup-env, then /reproduce".
 
 ```
 [fxxk-coming-soon] Paper Reproduction Status
@@ -44,7 +45,7 @@ Read `LOOP_STATE.md` and print a compact status table. If `LOOP_STATE.md` is mis
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-If `status == "success"`:
+If `status.state == "success"`:
 ```
 [fxxk-coming-soon] ✓ REPRODUCTION COMPLETE
  All metrics within tolerance after N iterations

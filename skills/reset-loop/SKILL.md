@@ -62,10 +62,11 @@ cp PROGRESS_REPORT.md archive/ 2>/dev/null || true
 
 ### Step 4: Initialize Fresh State
 
-Fresh `LOOP_STATE.md` inherits:
-- `effort:` from archived state (continuity)
-- `max_iterations:` from archived state
-- Everything else reset to defaults (`iteration_count: 0`, `status: not_started`)
+Call `/init-project --force-reset-state` to write a canonical empty `LOOP_STATE.md`, then:
+- Restore `loop_control.effort` from archived state (continuity)
+- Restore `loop_control.max_iterations` from archived state
+- If `--keep-history`: append old `iteration_history` entries to the new file under a `# Pre-reset history` comment
+- Result: `status.state = "not_started"`, `status.iteration_count = 0`, milestones all pending
 
 ## Output
 
@@ -78,8 +79,8 @@ Loop Reset Complete
  Pre-reset commit: git abc1234
 
  Fresh LOOP_STATE.md:
-   iteration_count: 0 | status: not_started
-   effort: balanced (inherited)
+   status.iteration_count: 0  |  status.state: not_started
+   loop_control.effort: balanced (inherited)
 
  Kept: src/ configs/ logs/ results/ data/
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

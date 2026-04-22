@@ -16,7 +16,15 @@ allowed-tools:
 !`cat LOOP_STATE.md 2>/dev/null || echo "No LOOP_STATE.md found — run /reproduce first"`
 
 ## Latest Log Tail
-!`tail -50 logs/iter_$(cat LOOP_STATE.md 2>/dev/null | grep 'iteration_count:' | awk '{print $2}').log 2>/dev/null || echo "No logs found yet"`
+!`python3 -c "
+import re, sys
+try:
+    c = open('LOOP_STATE.md').read()
+    m = re.search(r'iteration_count:\s*(\d+)', c)
+    n = m.group(1) if m else '0'
+    print(n)
+except: print('0')
+" 2>/dev/null | xargs -I{} tail -50 logs/iter_{}.log 2>/dev/null || echo "No logs found yet"`
 
 ## Instructions
 
@@ -25,7 +33,7 @@ Parse `$ARGUMENTS`:
 - `--iteration N` → show results from a specific iteration instead of latest
 
 Steps:
-1. Read `LOOP_STATE.md` → get `iteration_count`, `status`, `latest_metrics`, `tolerance`
+1. Read `LOOP_STATE.md` → get `status.iteration_count`, `status.state`, `latest_metrics`, `loop_control.tolerance`
 2. Read `DATA_AND_EVAL.md` → load `## Paper Target Metrics` YAML block
 3. If `results/iter_${N}/eval_summary.json` exists but `LOOP_STATE.md` is stale: re-parse metrics from log
 4. For each metric: compute `gap = |achieved - target| / |target|`, status = pass/fail

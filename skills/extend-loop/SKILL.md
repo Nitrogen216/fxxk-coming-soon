@@ -26,10 +26,10 @@ Parse `$ARGUMENTS`:
 ### Step 1: Validate State
 
 Read `LOOP_STATE.md`:
-- If `status == "success"` → report "Already successful. To run at higher fidelity, use `/reproduce --effort max`"
-- If `status != "timeout"` → warn "Loop has not timed out yet. Run `/reproduce` to continue"
-- If `status == "blocked"` → report "Loop is blocked. Fix the blocking error first, then run `/reproduce`"
-- If `status == "timeout"` → proceed
+- If `status.state == "success"` → report "Already successful. To run at higher fidelity, use `/reproduce --effort max`"
+- If `status.state == "blocked"` → report "Loop is blocked. Fix the blocking error first, then run `/reproduce`"
+- If `status.state != "timeout"` → warn "Loop has not timed out yet. Run `/reproduce` to continue"
+- If `status.state == "timeout"` → proceed
 
 ### Step 2: Assess Whether to Extend
 
@@ -41,18 +41,22 @@ Check if extension is likely to help:
 
 ### Step 3: Update Control Parameters
 
-In `LOOP_STATE.md`:
+In `LOOP_STATE.md` (all fields are nested — use Edit tool to update in-place):
 
 ```yaml
 # Before
-iteration_count: 10
-max_iterations: 10
-status: timeout
+status:
+  state: timeout
+  iteration_count: 10
+loop_control:
+  max_iterations: 10
 
 # After /extend-loop --add-iterations 5
-iteration_count: 10      # preserved (counting continues)
-max_iterations: 15       # extended
-status: running          # reset to running
+status:
+  state: running          # reset from timeout → running
+  iteration_count: 10     # preserved (counting continues from here)
+loop_control:
+  max_iterations: 15      # extended by N
 ```
 
 Apply `--effort` changes if specified (per effort-contract.md).

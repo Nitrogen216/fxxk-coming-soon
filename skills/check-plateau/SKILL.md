@@ -107,7 +107,7 @@ Escalation options (ranked):
      → Run: /debug-gap --metric f1_score --depth deep
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Auto-adding to LOOP_STATE.md: plateau_detected: true, plateau_type: A
+Auto-adding to LOOP_STATE.md: plateau.detected: true, plateau.type: A, plateau.since_iteration: N, plateau.metric: f1_score
 ```
 
 Update `LOOP_STATE.md` with plateau status and recommended fix.

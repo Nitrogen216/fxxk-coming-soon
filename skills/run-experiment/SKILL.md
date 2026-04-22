@@ -33,7 +33,7 @@ Parse `$ARGUMENTS`:
 - `--resume` → find latest checkpoint in `results/` and pass to training script
 - `--tag <label>` → attach label to logs for this run
 
-**Current iteration N**: read from `LOOP_STATE.md → iteration_count`.
+**Current iteration N**: read from `LOOP_STATE.md → status.iteration_count`.
 
 ### Pre-run Checks
 
