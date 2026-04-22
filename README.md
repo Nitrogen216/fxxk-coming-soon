@@ -18,7 +18,7 @@ Many research papers release GitHub repos with only a **"Coming Soon"** message 
 ```
 fxxk-coming-soon/
 │
-├── PAPER_TO_CODE_PROMPT.md    # Stage 1: master LLM prompt → 4 doc files
+├── PAPER_TO_CODE_PROMPT.md    # Stage 1: master LLM prompt → 5 doc files
 ├── AGENT_LOOP_PROMPT.md       # Stage 2: master loop controller for Claude Code
 │
 ├── skills/                    # Claude Code slash commands (copy to target project)
@@ -42,8 +42,10 @@ fxxk-coming-soon/
 │   │   # Diagnosis
 │   ├── debug-gap/SKILL.md         # /debug-gap — diagnose metric failures
 │   ├── check-impl/SKILL.md        # /check-impl — audit code vs paper docs
+│   ├── check-plateau/SKILL.md     # /check-plateau — detect stagnation
 │   │
-│   │   # Paper Analysis
+│   │   # Review & Paper Analysis
+│   ├── handoff-review/SKILL.md    # /handoff-review — external review handoff
 │   ├── paper-parse/SKILL.md       # /paper-parse — extract info from paper
 │   │
 │   └── shared/
@@ -52,7 +54,7 @@ fxxk-coming-soon/
 │
 ├── templates/                 # Templates for target paper reproduction projects
 │   ├── LOOP_STATE.md              # Loop state tracker (copy to target project)
-│   ├── CLAIMS_AND_GATES.md        # Paper claims + milestone gate template (NEW)
+│   ├── CLAIMS_AND_GATES.md        # Paper claims + milestone gate template
 │   ├── project-CLAUDE.md          # CLAUDE.md template for target projects
 │   ├── PROJECT_STRUCTURE.md       # Architecture blueprint template
 │   ├── IMPLEMENTATION_PLAN.md     # Implementation plan template
@@ -70,7 +72,7 @@ fxxk-coming-soon/
 
 1. Extract the paper's methodology sections (abstract, method, experiments)
 2. Open `PAPER_TO_CODE_PROMPT.md` and paste paper content into `{{PAPER_CONTENT}}`
-3. Submit to a capable LLM (Claude 4, GPT-5, Grok 4)
+3. Submit to a capable LLM (Claude Opus 4.7, GPT-5, Grok 4)
 4. Save the **5 generated files**:
    - `PROJECT_STRUCTURE.md` — architecture blueprint with exact function signatures
    - `IMPLEMENTATION_PLAN.md` — phase-by-phase implementation roadmap
@@ -80,15 +82,17 @@ fxxk-coming-soon/
 
 ### Stage 2: Autonomous Reproduction Loop (runs until success)
 
-Create a new project folder with the 4 generated files, then:
+Create a new project folder with the 5 generated files, then:
 
 ```bash
 # Copy loop infrastructure from fxxk-coming-soon
 cp /path/to/fxxk-coming-soon/AGENT_LOOP_PROMPT.md .
 cp /path/to/fxxk-coming-soon/templates/LOOP_STATE.md .
 cp /path/to/fxxk-coming-soon/templates/project-CLAUDE.md ./CLAUDE.md
-mkdir -p .claude/commands
-cp -r /path/to/fxxk-coming-soon/skills/* .claude/commands/
+
+# Install skills to .claude/skills/ (Claude Code's official skill directory)
+mkdir -p .claude/skills
+cp -r /path/to/fxxk-coming-soon/skills/* .claude/skills/
 
 # Launch Claude Code and start the loop
 claude
@@ -121,9 +125,67 @@ Monitor `LOOP_STATE.md` to watch progress. The loop runs without human confirmat
 
 ---
 
-## Effort Levels
+## How Skills Work
 
-Control depth and rigor with `--effort`:
+Skills are Claude Code **slash commands** — plain Markdown files that Claude reads and acts on when you type `/skill-name` in the Claude Code chat.
+
+### Installation
+
+Skills live in `.claude/skills/<skill-name>/SKILL.md` inside your project. Claude Code discovers them automatically on startup.
+
+```
+your-project/
+└── .claude/
+    └── skills/
+        ├── reproduce/
+        │   └── SKILL.md    # → /reproduce
+        ├── evaluate/
+        │   └── SKILL.md    # → /evaluate
+        └── ...
+```
+
+### Invoking a Skill
+
+Type the skill name with a leading `/` in Claude Code's chat:
+
+```
+/reproduce                            # no arguments
+/reproduce --effort max               # with flags
+/debug-gap --metric accuracy --depth deep
+/loop-once --focus f1_score
+```
+
+Arguments after the skill name are available inside the skill as `$ARGUMENTS`.
+
+### Skill Modes
+
+Skills can operate in two modes:
+
+| Mode | How | When used |
+|------|-----|-----------|
+| **Standard** | Claude reads the skill content and acts in your current conversation | Most skills |
+| **Forked subagent** (`context: fork`) | Skill runs in an isolated subagent with no conversation history | `/reproduce` — long-running autonomous loop |
+
+`/reproduce` uses `context: fork` so the loop runs fully isolated and doesn't pollute your conversation context. The subagent reads `LOOP_STATE.md` for all state — nothing is passed via memory.
+
+### Controlled Invocation
+
+`/reset-loop` has `disable-model-invocation: true` — Claude cannot trigger it automatically. Only you can run it by typing `/reset-loop`. This prevents accidental state resets during the autonomous loop.
+
+### Shell Injection (Pre-execution)
+
+Skills use `` !`command` `` to load live context before Claude sees the skill content:
+
+```markdown
+## Current State
+!`cat LOOP_STATE.md`
+```
+
+This runs the shell command **before** the skill prompt is sent to Claude, so Claude sees the actual current state rather than a static template.
+
+### Effort Levels
+
+All loop skills respect `--effort`:
 
 | Level | Max Iterations | Tolerance | Coverage |
 |-------|---------------|-----------|----------|
@@ -134,53 +196,52 @@ Control depth and rigor with `--effort`:
 
 ```
 /reproduce --effort max
+/reproduce --effort beast --reviewer gpt
 ```
 
 ---
 
 ## Available Skills
 
-Copy `skills/` to `.claude/commands/` in your target project to enable all **15 skills**:
-
 ### Loop Control
 
-| Command | Purpose |
-|---------|---------|
-| `/reproduce [--effort] [--reviewer]` | Start or resume the full autonomous loop |
-| `/loop-once [--focus metric] [--phase]` | Run exactly one iteration manually |
-| `/extend-loop [--add-iterations N]` | Add iterations to an exhausted loop |
-| `/reset-loop [--keep-history] [--hard]` | Fresh start, preserving code by default |
+| Command | Description | Notes |
+|---------|-------------|-------|
+| `/reproduce [--effort lite\|balanced\|max\|beast] [--reviewer none\|codex\|gpt]` | Start or resume the full autonomous loop | Runs in isolated subagent (`context: fork`) |
+| `/loop-once [--focus metric] [--phase implement\|execute\|evaluate]` | Run exactly one iteration with manual control | Stops after one cycle for review |
+| `/extend-loop [--add-iterations N] [--effort level]` | Add iterations to a timed-out loop | Resumes from current state, no data lost |
+| `/reset-loop [--keep-history] [--keep-code] [--hard]` | Reset loop state for a fresh run | **Requires explicit invocation** — cannot be auto-triggered |
 
 ### Status & Evaluation
 
-| Command | Purpose |
-|---------|---------|
-| `/reproduce-status` | Quick status + milestone snapshot from LOOP_STATE.md |
-| `/evaluate [--verbose]` | Check progress without running experiments |
-| `/write-report [--type success|progress]` | Generate formal reproduction report |
+| Command | Description | Notes |
+|---------|-------------|-------|
+| `/reproduce-status` | Compact milestone + metric snapshot | Reads only; no experiments run |
+| `/evaluate [--verbose] [--iteration N]` | Check metric gaps against paper targets | Shows trend across iterations |
+| `/write-report [--type success\|progress\|failed]` | Generate formal reproduction report | Auto-detects type from `LOOP_STATE.md` |
 
 ### Execution
 
-| Command | Purpose |
-|---------|---------|
-| `/setup-env [--gpu] [--skip-data]` | Initialize environment and download datasets |
-| `/run-experiment [--dry-run] [--tag]` | Execute experiment with logging and error recovery |
-| `/save-checkpoint [--message]` | Git-commit current state as recoverable snapshot |
+| Command | Description | Notes |
+|---------|-------------|-------|
+| `/setup-env [--python 3.10\|3.11\|3.12] [--gpu] [--skip-data]` | Init Python env, install deps, download data | Idempotent — safe to run multiple times |
+| `/run-experiment [--config path] [--dry-run] [--resume] [--tag label]` | Execute pipeline with structured logging | Auto-retries up to 3× on failure |
+| `/save-checkpoint [--message "text"] [--tag label]` | Git-commit current state as snapshot | Preserves best metrics in `results/best_checkpoint/` |
 
 ### Diagnosis
 
-| Command | Purpose |
-|---------|---------|
-| `/debug-gap [--metric] [--depth]` | Diagnose why a specific metric is failing |
-| `/check-impl [--section] [--strict]` | Audit code against all paper documentation |
-| `/check-plateau [--metric] [--window]` | Detect stagnation and classify plateau type |
+| Command | Description | Notes |
+|---------|-------------|-------|
+| `/debug-gap [--metric name] [--depth shallow\|deep]` | Root-cause analysis for a failing metric | Outputs ranked hypotheses with file locations |
+| `/check-impl [--section all\|structure\|plan\|eval] [--strict]` | Audit code against all 5 paper doc files | Finds missing functions, wrong configs |
+| `/check-plateau [--metric name] [--window N] [--threshold 0.01]` | Detect stagnation and classify type | Types: A (asymptotic), B (oscillating), C (ceiling), D (random) |
 
 ### Review & Paper Analysis
 
-| Command | Purpose |
-|---------|---------|
-| `/handoff-review [--reviewer] [--receive]` | Prepare external review package; parse verdict |
-| `/paper-parse [--file] [--focus]` | Extract metrics/arch/hyper from paper (pre-Stage 1) |
+| Command | Description | Notes |
+|---------|-------------|-------|
+| `/handoff-review [--reviewer human\|codex\|gpt] [--receive]` | Prepare external review package; parse verdict | Use `--receive` to ingest reviewer JSON verdict |
+| `/paper-parse [--file path] [--focus metrics\|arch\|data\|hyper\|all]` | Extract implementation info from paper | Outputs ready-to-paste YAML for `DATA_AND_EVAL.md` |
 
 ---
 

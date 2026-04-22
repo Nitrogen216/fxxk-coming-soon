@@ -27,9 +27,10 @@ Verify these files exist before starting. Stop and report if any are missing:
 - `IMPLEMENTATION_PLAN.md`
 - `DATA_AND_EVAL.md` (must contain `## Paper Target Metrics` YAML block)
 - `RISKS_AND_NOTES.md`
+- `CLAIMS_AND_GATES.md` (milestone gates M0-M4 + assumption ladder)
 - `AGENT_LOOP_PROMPT.md`
 
-If `LOOP_STATE.md` is missing, create it from `templates/LOOP_STATE.md`.
+If `LOOP_STATE.md` is missing, initialize it from the template: the user should have copied `templates/LOOP_STATE.md` from fxxk-coming-soon to the project root. Create a minimal one if not present.
 
 ## Argument Parsing
 

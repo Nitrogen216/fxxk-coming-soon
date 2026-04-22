@@ -166,10 +166,11 @@ Edit `LOOP_STATE.md → Loop Control` to change:
 
 ## Skills Reference
 
-All 15 skills are available via `.claude/commands/`. Install with:
+All 15 skills are available via `.claude/skills/`. Install with:
 
 ```bash
-cp -r /path/to/fxxk-coming-soon/skills/* .claude/commands/
+mkdir -p .claude/skills
+cp -r /path/to/fxxk-coming-soon/skills/* .claude/skills/
 ```
 
 ### Loop Control
