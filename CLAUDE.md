@@ -20,26 +20,37 @@ The repository also provides 5 composable skills (in `skills/`) and templates (i
 
 ```
 fxxk-coming-soon/
-├── PAPER_TO_CODE_PROMPT.md    # Stage 1: LLM prompt for doc generation
+├── PAPER_TO_CODE_PROMPT.md    # Stage 1: LLM prompt → 5 doc files
 ├── AGENT_LOOP_PROMPT.md       # Stage 2: master loop controller
 │
-├── skills/                    # Claude Code slash commands
-│   ├── reproduce/SKILL.md         # /reproduce — run the full loop
-│   ├── evaluate/SKILL.md          # /evaluate — check metrics
-│   ├── loop-once/SKILL.md         # /loop-once — one iteration
-│   ├── debug-gap/SKILL.md         # /debug-gap — diagnose failures
-│   ├── reproduce-status/SKILL.md  # /reproduce-status — quick snapshot
+├── skills/                    # Claude Code slash commands (15 total)
+│   ├── reproduce/SKILL.md         # /reproduce — full loop (context:fork)
+│   ├── loop-once/SKILL.md         # /loop-once — single iteration
+│   ├── extend-loop/SKILL.md       # /extend-loop — add iterations to timed-out loop
+│   ├── reset-loop/SKILL.md        # /reset-loop — fresh start (disable-model-invocation)
+│   ├── reproduce-status/SKILL.md  # /reproduce-status — milestone snapshot
+│   ├── evaluate/SKILL.md          # /evaluate — check metrics vs targets
+│   ├── write-report/SKILL.md      # /write-report — formal report
+│   ├── setup-env/SKILL.md         # /setup-env — environment init
+│   ├── run-experiment/SKILL.md    # /run-experiment — execute with logging
+│   ├── save-checkpoint/SKILL.md   # /save-checkpoint — git snapshot
+│   ├── debug-gap/SKILL.md         # /debug-gap — diagnose metric failures
+│   ├── check-impl/SKILL.md        # /check-impl — audit code vs docs
+│   ├── check-plateau/SKILL.md     # /check-plateau — detect stagnation
+│   ├── handoff-review/SKILL.md    # /handoff-review — external review
+│   ├── paper-parse/SKILL.md       # /paper-parse — extract from paper
 │   └── shared/
-│       ├── effort-contract.md     # effort level definitions
-│       └── loop-contract.md       # loop invariants
+│       ├── effort-contract.md     # lite/balanced/max/beast definitions
+│       └── loop-contract.md       # loop invariants + milestone ordering
 │
 ├── templates/                 # Templates for target projects
-│   ├── LOOP_STATE.md              # loop state tracker template
+│   ├── LOOP_STATE.md              # loop state + milestone tracker
+│   ├── CLAIMS_AND_GATES.md        # paper claims + M0-M4 gate definitions
 │   ├── project-CLAUDE.md          # CLAUDE.md template for target projects
-│   ├── PROJECT_STRUCTURE.md       # architecture blueprint template
-│   ├── IMPLEMENTATION_PLAN.md     # implementation plan template
-│   ├── DATA_AND_EVAL.md           # data & evaluation template
-│   └── RISKS_AND_NOTES.md         # risks & notes template
+│   ├── PROJECT_STRUCTURE.md       # architecture blueprint
+│   ├── IMPLEMENTATION_PLAN.md     # implementation plan with baseline-first
+│   ├── DATA_AND_EVAL.md           # data & evaluation + Paper Target Metrics YAML
+│   └── RISKS_AND_NOTES.md         # risks + assumption ladder
 │
 └── README.md
 ```

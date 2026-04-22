@@ -273,18 +273,41 @@ Generate ordered hypothesis list. Update `outstanding_issues`. Increment `iterat
 ## LOOP_STATE.md Schema
 
 ```yaml
-# ── Control ──────────────────────────────────
-effort: balanced
+# ── Control ───────────────────────────────────────
+effort: balanced            # lite | balanced | max | beast
 max_iterations: 10
 tolerance: 0.10
 reviewer: none
+gpu_hour_limit: 4
 
-# ── Current Status ────────────────────────────
+# ── Current Status ────────────────────────────────
 iteration_count: 3
-status: running          # not_started | running | success | timeout | blocked
-blocking_error: null     # populated if status == "blocked"
+status: running             # not_started | running | success | timeout | blocked | interrupted
+blocking_error: null
+last_updated: "2024-01-15T14:23:00Z"
 
-# ── Latest Metrics ────────────────────────────
+# ── Milestone Progress ────────────────────────────
+current_milestone: M2       # M0 | M1 | M2 | M3 | M4
+milestones:
+  M0_sanity:
+    status: passed
+    passed_at_iteration: 0
+  M1_baseline:
+    status: passed
+    passed_at_iteration: 2
+    baseline_targets: {accuracy: 0.762, f1_score: 0.701}
+  M2_method:
+    status: pending
+    passed_at_iteration: null
+  M3_ablation:
+    status: pending         # only checked if effort >= max
+  M4_review:
+    status: pending         # only checked if effort == beast or reviewer != none
+    reviewer_score: null
+    reviewer_verdict: null  # ready | almost | not_ready
+    reviewer_blockers: []
+
+# ── Latest Metrics ────────────────────────────────
 latest_metrics:
   accuracy:
     target: 0.847
@@ -297,40 +320,51 @@ latest_metrics:
     gap: "8.0%"
     status: fail
 
-# ── Iteration History ─────────────────────────
+# ── Plateau Detection ─────────────────────────────
+plateau_detected: false
+plateau_metric: null
+plateau_type: null          # A: asymptotic | B: oscillating | C: ceiling | D: random
+plateau_since_iteration: null
+plateau_escalation_applied: null
+
+# ── Iteration History ─────────────────────────────
 iteration_history:
   - iteration: 1
+    milestone: M1
     achieved: {accuracy: 0.751}
-    issues_found: ["data normalization computed globally, should be per-channel"]
+    issues_found: ["data normalization computed globally, not per-channel"]
     fixes_applied: ["fixed mean/std to per-channel in data/preprocessing.py"]
   - iteration: 2
+    milestone: M1
     achieved: {accuracy: 0.803}
     issues_found: ["learning rate too high, loss oscillating"]
     fixes_applied: ["reduced lr 1e-3→3e-4, added 100-step linear warmup"]
 
-# ── Outstanding Issues (priority-ordered) ─────
+# ── Outstanding Issues (priority-ordered) ─────────
 outstanding_issues:
   - priority: high
     metric: f1_score
+    milestone: M2
     gap: "8.0%"
-    hypothesis: "Paper uses macro-F1 with class weights; code uses unweighted"
-    proposed_fix: "Add class_weight parameter to CrossEntropyLoss, use macro averaging"
-    file_hint: "src/training/trainer.py:loss_fn, src/eval/metrics.py:compute_f1"
+    hypothesis: "Paper uses macro-F1; code uses micro"
+    proposed_fix: "Change average='micro' to average='macro' in metrics.py:compute_f1"
+    file_hint: "src/eval/metrics.py:42"
   - priority: medium
     metric: accuracy
+    milestone: M2
     gap: "3.1%"
-    hypothesis: "Weight initialization differs from paper (Xavier vs Kaiming)"
-    proposed_fix: "Check paper Section 3.2, switch to nn.init.xavier_uniform_"
+    hypothesis: "Weight init differs from paper (Xavier vs Kaiming)"
+    proposed_fix: "Switch to nn.init.xavier_uniform_ per paper Section 3.2"
     file_hint: "src/models/model.py:_init_weights"
 
-# ── Applied Fixes Log ─────────────────────────
+# ── Applied Fixes Log ─────────────────────────────
 fixes_applied:
   - iteration: 1
     description: "Fixed per-channel data normalization"
     files_changed: ["src/data/preprocessing.py"]
     result: "accuracy 0.751 → 0.803 (+7.0%)"
   - iteration: 2
-    description: "Reduced LR with warmup"
+    description: "Reduced LR with warmup schedule"
     files_changed: ["configs/paper_config.yaml", "src/training/trainer.py"]
     result: "accuracy 0.803 → 0.821 (+2.2%)"
 ```

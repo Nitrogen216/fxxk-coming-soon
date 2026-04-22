@@ -19,10 +19,11 @@ This is an autonomous paper reproduction project managed by the **fxxk-coming-so
 | File | Role | Read by |
 |------|------|---------|
 | `AGENT_LOOP_PROMPT.md` | **Master loop controller — read this first** | Claude Code |
+| `CLAIMS_AND_GATES.md` | Paper claims frozen + M0-M4 milestone gates | Claude Code |
 | `PROJECT_STRUCTURE.md` | Architecture blueprint, module specs | Claude Code |
 | `IMPLEMENTATION_PLAN.md` | Phase-by-phase implementation guide | Claude Code |
 | `DATA_AND_EVAL.md` | Target metrics, data pipelines, evaluation | Claude Code |
-| `RISKS_AND_NOTES.md` | Known pitfalls, debugging strategies | Claude Code |
+| `RISKS_AND_NOTES.md` | Known pitfalls, debugging strategies, assumption ladder | Claude Code |
 | `LOOP_STATE.md` | Loop state tracker (updated each iteration) | Claude Code + Human |
 | `REPRODUCTION_REPORT.md` | Final results (written on success) | Human |
 | `PROGRESS_REPORT.md` | Best results so far (written on timeout) | Human |
@@ -62,19 +63,24 @@ Runs the full loop automatically until success or max iterations.
 /debug-gap --metric accuracy --depth deep
 ```
 
+### Detect and classify stagnation
+```
+/check-plateau --metric accuracy --window 5
+```
+
 ### Check status at a glance
 ```
 /reproduce-status
 ```
 
+### Audit implementation completeness against paper docs
+```
+/check-impl --section all
+```
+
 ### Loop ran out of iterations? Extend it
 ```
 /extend-loop --add-iterations 5
-```
-
-### Audit implementation completeness
-```
-/check-impl --section all
 ```
 
 ### Generate formal report at any time
@@ -87,6 +93,12 @@ Runs the full loop automatically until success or max iterations.
 /save-checkpoint --message "iter 6: f1 improved to 75.4%"
 ```
 
+### Request external review (optional)
+```
+/handoff-review --reviewer gpt
+/handoff-review --receive  # after reviewer responds
+```
+
 ---
 
 ## How the Loop Works
@@ -95,20 +107,35 @@ Claude Code follows the loop defined in `AGENT_LOOP_PROMPT.md`:
 
 ```
 INITIALIZE
-  ↓ (verify files, read targets, check state)
-PHASE 0: Environment Setup  [iteration 1 only]
+  ↓ (verify files, read CLAIMS_AND_GATES.md, load milestone state)
+PHASE 0: Environment Setup  [iteration 1 only → M0 sanity gate]
   ↓ (create dirs, install deps, download data)
 PHASE 1: Implement / Improve
-  ↓ (first iter: full implementation | later: apply top fix)
+  ↓ (M1 baseline first; M2 method only after M1 confirmed)
 PHASE 2: Execute
-  ↓ (run experiment, save logs)
+  ↓ (run experiment, save logs/iter_N.log)
 PHASE 3: Evaluate
-  ↓ (compute metrics, compare to paper targets)
+  ↓ (compute metrics, compare to paper targets, check milestone gate)
+PHASE 3.5: Plateau Check
+  ↓ (detect stagnation, classify type A/B/C/D, escalate if needed)
 PHASE 4: Decide
-  ├── ALL PASS → write REPRODUCTION_REPORT.md → STOP ✓
+  ├── M2 gate passes → write REPRODUCTION_REPORT.md → STOP ✓
   ├── MAX ITER → write PROGRESS_REPORT.md → STOP ⏱
+  ├── PLATEAU → apply type-specific escalation → back to PHASE 1
   └── FAIL → diagnose gaps → update LOOP_STATE.md → back to PHASE 1
 ```
+
+### Milestone Gate System
+
+| Gate | Meaning | Must pass before |
+|------|---------|-----------------|
+| M0 | Sanity check: code runs, data loads | Any real training |
+| M1 | Baseline reproduced | Attempting proposed method |
+| M2 | Proposed method reproduced | Declaring success |
+| M3 | Ablations reproduced | `effort >= max` only |
+| M4 | External review passed | `effort = beast` only |
+
+The loop enforces M1 before M2 — no iterations are wasted on method improvements while the baseline is broken.
 
 ---
 
@@ -118,9 +145,12 @@ Watch `LOOP_STATE.md` — Claude Code updates it after every iteration.
 
 Key fields to check:
 - `status` — `running` / `success` / `timeout` / `blocked`
+- `current_milestone` — `M0` / `M1` / `M2` / `M3` / `M4`
 - `iteration_count` — how many iterations completed
 - `latest_metrics` — current numbers vs paper targets
 - `outstanding_issues` — what Claude Code plans to fix next
+- `plateau_detected` — whether stagnation has been detected
+- `plateau_type` — `A` (asymptotic) / `B` (oscillating) / `C` (ceiling) / `D` (random)
 
 ---
 
@@ -134,21 +164,65 @@ Edit `LOOP_STATE.md → Loop Control` to change:
 
 ---
 
-## Skills Installation
+## Skills Reference
 
-Copy the `skills/` directory from fxxk-coming-soon to `.claude/commands/` in this project:
+All 15 skills are available via `.claude/commands/`. Install with:
 
 ```bash
 cp -r /path/to/fxxk-coming-soon/skills/* .claude/commands/
 ```
 
+### Loop Control
+| Command | Purpose |
+|---------|---------|
+| `/reproduce [--effort] [--reviewer]` | Start or resume the full autonomous loop |
+| `/loop-once [--focus metric] [--phase]` | Run exactly one iteration manually |
+| `/extend-loop [--add-iterations N]` | Add iterations to an exhausted loop |
+| `/reset-loop [--keep-history] [--hard]` | Fresh start, preserving code by default |
+
+### Status & Evaluation
+| Command | Purpose |
+|---------|---------|
+| `/reproduce-status` | Quick status + milestone snapshot |
+| `/evaluate [--verbose]` | Check progress without running experiments |
+| `/write-report [--type success|progress]` | Generate formal reproduction report |
+
+### Execution
+| Command | Purpose |
+|---------|---------|
+| `/setup-env [--gpu] [--skip-data]` | Initialize environment and download datasets |
+| `/run-experiment [--dry-run] [--tag]` | Execute experiment with logging |
+| `/save-checkpoint [--message]` | Git-commit current state as recoverable snapshot |
+
+### Diagnosis
+| Command | Purpose |
+|---------|---------|
+| `/debug-gap [--metric] [--depth]` | Diagnose why a specific metric is failing |
+| `/check-impl [--section] [--strict]` | Audit code against all paper documentation |
+| `/check-plateau [--metric] [--window]` | Detect stagnation and classify plateau type |
+
+### Review & Paper Analysis
+| Command | Purpose |
+|---------|---------|
+| `/handoff-review [--reviewer] [--receive]` | Prepare external review package; parse verdict |
+| `/paper-parse [--file] [--focus]` | Extract metrics/arch/hyper from paper |
+
 ---
 
 ## Success Criteria
 
-Reproduction is declared **successful** when ALL primary metrics listed in `DATA_AND_EVAL.md → Paper Target Metrics` are achieved within the configured `tolerance`.
+Reproduction is declared **successful** when:
+1. **M2 milestone gate passes**: ALL primary metrics in `DATA_AND_EVAL.md → Paper Target Metrics` are within tolerance
+2. Results are written to `REPRODUCTION_REPORT.md`
 
-Results are written to `REPRODUCTION_REPORT.md` on success.
+Tolerance defaults per effort level:
+
+| Effort | Tolerance | Coverage |
+|--------|-----------|----------|
+| `lite` | 15% | Primary metrics only |
+| `balanced` | 10% | All primary metrics |
+| `max` | 5% | Primary + secondary |
+| `beast` | 2% | Everything + ablations |
 
 ---
 
@@ -156,8 +230,10 @@ Results are written to `REPRODUCTION_REPORT.md` on success.
 
 If the loop keeps failing on the same metric:
 
-1. Run `/debug-gap --metric <name> --depth deep` for deep diagnosis
-2. Check `RISKS_AND_NOTES.md → Technical Risk Assessment` for known issues
-3. Manually edit `LOOP_STATE.md → outstanding_issues` to add your hypothesis
-4. Consider increasing effort: change `effort: max` in `LOOP_STATE.md`
-5. If a fundamental paper ambiguity is found: document it in `RISKS_AND_NOTES.md` and add a fallback assumption
+1. Run `/check-plateau` to detect and classify stagnation type
+2. Run `/debug-gap --metric <name> --depth deep` for root cause analysis
+3. Check `RISKS_AND_NOTES.md → Assumption Ladder` for fallback strategies
+4. Manually edit `LOOP_STATE.md → outstanding_issues` to add your hypothesis
+5. Consider increasing effort: change `effort: max` in `LOOP_STATE.md`
+6. If a fundamental paper ambiguity persists: update assumption status in `RISKS_AND_NOTES.md` and `CLAIMS_AND_GATES.md`
+7. Use `/handoff-review` to get an external opinion on the implementation

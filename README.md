@@ -8,8 +8,8 @@
 
 Many research papers release GitHub repos with only a **"Coming Soon"** message — or no code at all. **fxxk-coming-soon** bridges that gap with a two-stage approach:
 
-1. **Documentation Generation**: Use `PAPER_TO_CODE_PROMPT.md` with any capable LLM to convert a research paper into 4 structured `.md` files — a complete implementation blueprint.
-2. **Autonomous Reproduction Loop**: Drop those files + `AGENT_LOOP_PROMPT.md` into a new project and run `/reproduce`. Claude Code loops — implement → execute → evaluate → diagnose → improve — until the paper's reported metrics are reproduced within tolerance.
+1. **Documentation Generation**: Use `PAPER_TO_CODE_PROMPT.md` with any capable LLM to convert a research paper into **5 structured `.md` files** — a complete implementation blueprint plus a reproduction control policy.
+2. **Autonomous Reproduction Loop**: Drop those files + `AGENT_LOOP_PROMPT.md` into a new project and run `/reproduce`. Claude Code loops through **milestone gates** (M0→M1 baseline→M2 method) — implement → execute → evaluate → diagnose → improve — until metrics are reproduced or the budget runs out.
 
 ---
 
@@ -52,11 +52,12 @@ fxxk-coming-soon/
 │
 ├── templates/                 # Templates for target paper reproduction projects
 │   ├── LOOP_STATE.md              # Loop state tracker (copy to target project)
+│   ├── CLAIMS_AND_GATES.md        # Paper claims + milestone gate template (NEW)
 │   ├── project-CLAUDE.md          # CLAUDE.md template for target projects
 │   ├── PROJECT_STRUCTURE.md       # Architecture blueprint template
 │   ├── IMPLEMENTATION_PLAN.md     # Implementation plan template
 │   ├── DATA_AND_EVAL.md           # Data & evaluation template
-│   └── RISKS_AND_NOTES.md         # Risks & notes template
+│   └── RISKS_AND_NOTES.md         # Risks & notes template (with assumption ladder)
 │
 └── README.md
 ```
@@ -70,11 +71,12 @@ fxxk-coming-soon/
 1. Extract the paper's methodology sections (abstract, method, experiments)
 2. Open `PAPER_TO_CODE_PROMPT.md` and paste paper content into `{{PAPER_CONTENT}}`
 3. Submit to a capable LLM (Claude 4, GPT-5, Grok 4)
-4. Save the 4 generated files:
+4. Save the **5 generated files**:
    - `PROJECT_STRUCTURE.md` — architecture blueprint with exact function signatures
    - `IMPLEMENTATION_PLAN.md` — phase-by-phase implementation roadmap
-   - `DATA_AND_EVAL.md` — data pipelines + **machine-readable target metrics**
-   - `RISKS_AND_NOTES.md` — known challenges and debugging strategies
+   - `DATA_AND_EVAL.md` — data pipelines + **machine-readable target metrics YAML**
+   - `RISKS_AND_NOTES.md` — known challenges, debugging strategies, assumption ladder
+   - `CLAIMS_AND_GATES.md` — **paper claims frozen + M0-M4 milestone gate definitions**
 
 ### Stage 2: Autonomous Reproduction Loop (runs until success)
 
@@ -96,19 +98,22 @@ claude
 Claude Code will run autonomously:
 
 ```
-INITIALIZE → read docs, load targets, check state
+INITIALIZE → read docs, load CLAIMS_AND_GATES.md, check milestone state
      ↓
-PHASE 0: Environment setup  [first iteration only]
+PHASE 0: Environment setup  [first iteration only → M0 sanity gate]
      ↓
-PHASE 1: Implement / Improve
-     ↓  (full code first iter; targeted fix on subsequent iters)
+PHASE 1: Implement / Improve  [M1 baseline first, then M2 method]
+     ↓  (baseline code until M1 passes; method code after M1 confirmed)
 PHASE 2: Execute
-     ↓  (run experiment, save to logs/iter_N.log)
+     ↓  (run experiment, save logs/iter_N.log)
 PHASE 3: Evaluate
-     ↓  (compare metrics vs paper targets, compute gaps)
+     ↓  (compare metrics vs targets, check milestone gate)
+PHASE 3.5: Plateau Check
+     ↓  (detect stagnation, classify type A/B/C/D, escalate if needed)
 PHASE 4: Decide
-     ├── ALL PASS → REPRODUCTION_REPORT.md → DONE ✓
+     ├── M2 gate passes → REPRODUCTION_REPORT.md → DONE ✓
      ├── MAX ITER → PROGRESS_REPORT.md → DONE ⏱
+     ├── PLATEAU → escalate strategy → back to PHASE 1
      └── FAIL → diagnose → update LOOP_STATE.md → back to PHASE 1
 ```
 
@@ -135,7 +140,7 @@ Control depth and rigor with `--effort`:
 
 ## Available Skills
 
-Copy `skills/` to `.claude/commands/` in your target project to enable all 13 skills:
+Copy `skills/` to `.claude/commands/` in your target project to enable all **15 skills**:
 
 ### Loop Control
 
@@ -150,7 +155,7 @@ Copy `skills/` to `.claude/commands/` in your target project to enable all 13 sk
 
 | Command | Purpose |
 |---------|---------|
-| `/reproduce-status` | Quick status snapshot from LOOP_STATE.md |
+| `/reproduce-status` | Quick status + milestone snapshot from LOOP_STATE.md |
 | `/evaluate [--verbose]` | Check progress without running experiments |
 | `/write-report [--type success|progress]` | Generate formal reproduction report |
 
@@ -168,11 +173,13 @@ Copy `skills/` to `.claude/commands/` in your target project to enable all 13 sk
 |---------|---------|
 | `/debug-gap [--metric] [--depth]` | Diagnose why a specific metric is failing |
 | `/check-impl [--section] [--strict]` | Audit code against all paper documentation |
+| `/check-plateau [--metric] [--window]` | Detect stagnation and classify plateau type |
 
-### Paper Analysis
+### Review & Paper Analysis
 
 | Command | Purpose |
 |---------|---------|
+| `/handoff-review [--reviewer] [--receive]` | Prepare external review package; parse verdict |
 | `/paper-parse [--file] [--focus]` | Extract metrics/arch/hyper from paper (pre-Stage 1) |
 
 ---
@@ -195,7 +202,9 @@ Copy `skills/` to `.claude/commands/` in your target project to enable all 13 sk
 ### fxxk-coming-soon specific
 - **Paper as oracle**: the paper's reported metrics ARE the success criteria — no subjective judgment
 - **Machine-readable targets**: `Paper Target Metrics` YAML in `DATA_AND_EVAL.md` parsed directly by the loop
-- **Reproducibility focus**: every design choice optimizes for matching paper results, not novel research
+- **Milestone gates**: `CLAIMS_AND_GATES.md` enforces baseline-first (M1 before M2) — prevents wasting iterations on method improvements when the baseline itself is broken
+- **Plateau detection**: PHASE 3.5 classifies stagnation into 4 types and applies type-specific escalation — no more spinning on the same fix
+- **Assumption ladder**: all ambiguous paper details documented with default/fallback/validation — the loop can self-debug using it
 
 ---
 
